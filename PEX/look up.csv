@@ -1,0 +1,19 @@
+Substance;MW;Intravascular;Fractional turnover;Half Life;P concentration
+IgG;150;45;7;22;100
+IgG3;150;64;17;7;100
+IgMa;950;78;19;5;100
+IgA;160;42;25;6;100
+IgD;175;75;37;2,8;100
+IgE;190;45;94;2,5;100
+Albumin;66;44;11;17;100
+C3;240;67;41;2;100
+C4;200;66;43;2;100
+Fibrinogen;340;81;24;4,2;100
+Factor VIII;220;71;150;0,6;100
+Antithrombin III;57;45;55;2,4;100
+Lipoprotein cholesterol;1300;90;25;4;100
+IgM;950;89;;5,9;100
+Bence-Jones protein;50;10;;;100
+Endotoxin;1000;60;;;100
+Immune complexes;400;60;;;100
+TNF;50;40;;0,014;100
