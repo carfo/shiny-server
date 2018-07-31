@@ -8,6 +8,7 @@ shinyUI(fluidPage(
     HTML(
       "body {
       background-color: #fff8e8;
+      font-size: 20px;
       }"
     )
   )),
@@ -39,7 +40,7 @@ shinyUI(fluidPage(
                       choices = ""
                     ),
                     dateInput("nascita", "Data di nascita:",
-                              value = Sys.Date()%m-%years(25)),
+                              value = Sys.Date()%m-%years(25),format = "dd-mm-yyyy"),
                     radioGroupButtons(
                       inputId = "sex",
                       label = "Sesso",
@@ -112,7 +113,8 @@ shinyUI(fluidPage(
         label = "During this next phase, evaluate the first rescuer’s ability to give breaths with a bag-mask.",
         choices = c("SECOND RESCUER gives 30 compressions immediately after shock delivery (for 2 cycles)",
                     "FIRST RESCUER successfully delivers 2 breaths with bag-mask (for 2 cycles)"),
-        width = "100%"
+        width = "100%",
+        status = "success"
       ),
       HTML("<center><h3>AFTER 2 CYCLES, STOP THE EVALUATION</h3></center>"),
       textOutput("txt")

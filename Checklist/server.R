@@ -21,6 +21,11 @@ shinyServer(function(input, output, session) {
     updateRadioGroupButtons(session, "sex",
                             selected = partecipantData()[partecipantData()$CF==input$nome,
                                                                          ]$Sesso)
+    # updatecheck(session, input=c("firstBLSp","secondBLSp","firstBAG"),
+    #             selected = partecipantData()[partecipantData()$CF==input$nome,])
+    updatePrettyCheckboxGroup(session,inputId = "firstBLSp",selected = NA)
+    updateCheckboxGroupButtons(session,inputId = "secondBLSp",selected = NULL)
+    updateAwesomeCheckboxGroup(session,inputId = "firstBAG",selected = NULL)
   })
 
   output$txt <- renderText({

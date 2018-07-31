@@ -22,3 +22,13 @@ saveSQLite <- function(data, name){
   }
   return (src)
 }
+
+updatecheck <- function(session=NULL, input, selected, db=NULL) {
+  if(!is.null(db)){
+    return(NULL)
+  }else{
+    updatePrettyCheckboxGroup(session,inputId = input[1],selected = NA)
+    updateCheckboxGroupButtons(session,inputId = input[2],selected = FALSE)
+    updateAwesomeCheckboxGroup(session,inputId = input[3],selected = FALSE)
+  }
+}
