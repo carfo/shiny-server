@@ -30,7 +30,7 @@ options(knitr.kable.NA = '-', knitr.table.format = 'pandoc', digits = 2)
 options(qwraps2_markup = 'markdown')
 opts_template$set(myfigures = list(fig.height = 6, fig.width = 8, dpi=300))
 st_options("round.digits",2)
-
+options(shiny.sanitize.errors = FALSE)
 ```
 ```{r load, message=FALSE, echo=FALSE, warning=FALSE}
 dt<-data.table(read.csv(file = "Db  Simonini per fabio + bis minore 20.csv", 
