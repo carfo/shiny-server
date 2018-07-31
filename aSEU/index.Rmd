@@ -61,6 +61,7 @@ db[,Nmutazioni:=stri_count(Mutazioni,fixed=" ")+1]
 db[Nmutazioni==1,Genetica:=Mutazioni]
 db[Nmutazioni>1,Genetica:="Multipla"]
 db[,Evento:=factor(Evento,levels = c("NO","SI"))]
+db[,Sesso:=factor(Sesso)]
 db[,ricorrente:=NULL]
 db[Codice.famiglia%in%(db[Evento=="SI", .N, by=Codice.famiglia][N>1]$Codice.famiglia),
    ricorrente:=factor("SI",levels = c("NO","SI"))]
