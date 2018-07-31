@@ -35,7 +35,7 @@ options(shiny.sanitize.errors = FALSE)
 ```{r load, message=FALSE, echo=FALSE, warning=FALSE}
 dt<-data.table(read.csv(file = "Db  Simonini per fabio + bis minore 20.csv", 
                         as.is = T,dec = "."))
-dt<-dt[Cognome!=""]
+dt<-dt[!is.na(id)]
 #delirium
 dt[Delirium!="",tipo.delirium:=factor(Delirium,levels = c("ipo","iper","iper/ipo"))]
 dt[Delirium!="",Delirium:=factor("si",levels = c("no","si"))]
