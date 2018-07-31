@@ -35,10 +35,10 @@ st_options("round.digits",2)
 
 ```
 ```{r load, message=FALSE, echo=FALSE, warning=FALSE}
-db<-data.table(read.csv(file = "Data/SEU_Database_Penetranza_PARENTELE_pulito.csv"))
+db<-data.table(read.csv(file = "C:/Users/simnova04/Documents/git/shiny-server-master/aSEU/Data/SEU_Database_Penetranza_PARENTELE_pulito.csv",as.is=T))
 setnames(db,"N","Codice.famiglia")
-db[,Data.di.nascita:=as.Date(Data.di.nascita,"%d/%m/%Y")]
-db[,Data.Esordio:=as.Date(Data.Esordio,"%d/%m/%Y")]
+db[,Data.di.nascita:=as.Date(Data.di.nascita,"%d-%m-%Y")]
+db[,Data.Esordio:=as.Date(Data.Esordio,"%d-%m-%Y")]
 db[,Mutazioni:=""]
 db[(CFH!=""&CFH!="/"&CFH!="Negativo"&CFH!="Negativo (Bergamo)"&CFH!="Sospeso")|
      ((Esito.MLPA%like%"dup"|Esito.MLPA%like%"Dup"|Esito.MLPA%like%"DUP")&
