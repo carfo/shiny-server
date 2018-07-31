@@ -1,0 +1,245 @@
+---
+title: "Osteopontina e Emorragia subaracnoidea"
+author: "Fabio Carfagna [fabio.carfagna@med.uniupo.it]"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: html_document
+runtime: shiny
+---
+
+```{r setup, message=FALSE, echo=FALSE, warning=FALSE}
+library(knitr)
+library(data.table)
+library(ggplot2)
+library(GGally)
+library(moments)
+library(lme4)
+library(lmerTest)
+library(summarytools)
+library(qwraps2)
+library(dplyr)
+library(broom)
+options(knitr.kable.NA = '-', knitr.table.format = 'pandoc', digits = 2)
+options(qwraps2_markup = 'markdown')
+opts_template$set(myfigures = list(fig.height = 6, fig.width = 7))
+st_options("round.digits",2)
+
+```
+
+```{r load, message=FALSE, echo=FALSE, warning=FALSE}
+dt<-data.table(read.csv(file = "anova.csv", as.is = T))
+dt_pz<-data.table(read.csv(file = "pazienti.csv", as.is = T))
+
+dt[,PZ:=as.factor(PZ)]
+
+dt_pz[,PZ:=as.factor(NPR)]
+dt_pz[,NPR:=NULL]
+dt[,npr:=as.factor(npr)]
+dt[,Tempo:=factor(Tempo, levels=c(0,1,2), labels = c("Insorgenza", "3° giorno","7° giorno"))]
+dt_pz[,SESSO:=as.factor(SESSO)]
+dt[,Doppler:=substr(Doppler,0,1)]
+dt[,Doppler:=factor(Doppler, levels=c("n","s"))]
+dt_pz[,MORTE:=factor(trimws(MORTE), levels=c("no","si"))]
+dt_pz[,MORTE.ENCEFALICA:=factor(trimws(MORTE.ENCEFALICA), levels=c("no","si"))]
+dt<-dt[dt_pz,on="PZ"]
+rm(dt_pz)
+# dividere summary per parametri variabili nel tempo
+my_summary <-
+  with(dt,
+       list("Età" = tab_summary(ETA)[c(1, 4, 3)],
+            "Sesso (%)" = tab_summary(SESSO),
+            "mRS a 3 Mesi" = c(tab_summary(mRS_3_Mesi)[c(1, 4, 3)],
+                               "mean (95% CI)" = ~ frmtci(qwraps2::mean_ci(mRS_3_Mesi))),
+            "Degenza Ospedaliera" = tab_summary(Degenza.Ospedaliera)[c(1, 4, 3)],
+            "Decesso entro 11 giorni" = tab_summary(MORTE)
+            ))
+my_summary_t <-
+  with(dt,
+       list("Osteopontina Plasma" = tab_summary(OPN_P),
+            "Osteopontina Liquor" = tab_summary(OPN_L),
+            "PCR" = tab_summary(PCR),
+            "CPP" = tab_summary(CPP)))
+
+pvals <-
+  list(wilcox.test(OPN_P ~ mRS_3_Mesi>2, data=dt[Tempo=="Insorgenza"])$p.value,
+       wilcox.test(OPN_P ~ mRS_3_Mesi>2, data=dt[Tempo=="3° giorno"])$p.value,
+       wilcox.test(OPN_P ~ mRS_3_Mesi>2, data=dt[Tempo=="7° giorno"])$p.value,
+       wilcox.test(OPN_L ~ mRS_3_Mesi>2, data=dt[Tempo=="Insorgenza"])$p.value,
+       wilcox.test(OPN_L ~ mRS_3_Mesi>2, data=dt[Tempo=="3° giorno"])$p.value,
+       wilcox.test(OPN_L ~ mRS_3_Mesi>2, data=dt[Tempo=="7° giorno"])$p.value) %>%
+  lapply(frmtp) %>%
+  do.call(c, .)
+
+
+```
+
+## Descrittive
+
+Pazienti reclutati `r dt[,.N,by=PZ][,.N]`  
+Esami laboratorio `r dt[,.N]`  
+  
+Variabili demografiche:  
+```{r tab_desc, results='asis', echo=FALSE}
+whole <- summary_table(dt, my_summary)
+grouped <- summary_table(dplyr::group_by(dt, mRS_3_Mesi>2), my_summary)
+print(cbind(whole,grouped))
+```
+  
+Variabili raccolte prospettivamente:
+```{r tab_desc2, results='asis', echo=FALSE}
+summary_table(dplyr::group_by(dt, Tempo, mRS_3_Mesi>2), my_summary_t)
+```
+  
+  
+```{r plot_opn_p, echo=FALSE, opts.label='myfigures'}
+ggplot(data=dt, aes(Tempo, OPN_P, colour=mRS_3_Mesi>2, group=PZ))+
+  geom_jitter()+ 
+  labs(x="",y="Osteopontina plasmatica") + 
+  scale_color_discrete("mRS a 3 mesi > 2")
+```
+
+```{r plot_pairs, echo=FALSE, opts.label='myfigures'}
+ggpairs(dt[Tempo=="Insorgenza",.(OPN_L,OPN_P,PCR)],
+        ggplot2::aes(colour=factor(dt[Tempo=="Insorgenza"]$mRS_3_Mesi>2)),
+        title = "mRS > 2 a 3 mesi", 
+        columnLabels=c("Osteopontina Liquor","Osteopontina Plasma","PCR"))
+ggpairs(dt[Tempo=="3° giorno",.(OPN_L,OPN_P,PCR)],
+        ggplot2::aes(colour=factor(dt[Tempo=="3° giorno"]$mRS_3_Mesi>2)),
+        title = "mRS > 2 a 3 mesi", 
+        columnLabels=c("Osteopontina Liquor","Osteopontina Plasma","PCR"))
+ggpairs(dt[Tempo=="7° giorno",.(OPN_L,OPN_P,PCR)],
+        ggplot2::aes(colour=factor(dt[Tempo=="7° giorno"]$mRS_3_Mesi>2)),
+        title = "mRS > 2 a 3 mesi", 
+        columnLabels=c("Osteopontina Liquor","Osteopontina Plasma","PCR"))
+ggpairs(data.table(Insorgenza=dt[Tempo=="Insorgenza"]$OPN_P,
+              Terzo=dt[Tempo=="3° giorno"]$OPN_P,
+              Settimo=dt[Tempo=="7° giorno"]$OPN_P),
+        title = "Osteopontina Plasma - mRS > 2 a 3 mesi",
+        ggplot2::aes(colour=factor(dt[,.(mRS_3mesi=head(mRS_3_Mesi,1)),
+                                      by=PZ]$mRS_3mesi>2)))
+ggpairs(data.table(Insorgenza=dt[Tempo=="Insorgenza"]$OPN_L,
+                   Terzo=dt[Tempo=="3° giorno"]$OPN_L,
+                   Settimo=dt[Tempo=="7° giorno"]$OPN_L),
+        title = "Osteopontina Liquor - mRS>2 a 3 mesi",
+        ggplot2::aes(colour=factor(dt[,.(mRS_3mesi=head(mRS_3_Mesi,1)),
+                                      by=PZ]$mRS_3mesi>2)))
+```
+
+```{r plot_morte11, echo=FALSE, opts.label='myfigures'}
+ggplot(aes(Tempo,OPN_P,group=PZ, colour=MORTE), data=dt)+
+  geom_point()+
+  geom_line()+
+  facet_grid(. ~ MORTE)+
+  scale_color_discrete("Deceduti entro 11 giorni")+
+  labs(x="", y="Osteopontina")
+
+ggplot(aes(Tempo,OPN_P,group=PZ, colour=MORTE), data=dt)+
+  geom_point()+
+  geom_line()+
+  scale_y_continuous(trans = "log10")+
+  facet_grid(. ~ MORTE)+
+  scale_color_discrete("Deceduti entro 11 giorni")+
+  labs(x="", y="log(Osteopontina)")
+
+```
+
+```{r plot_mRS3, echo=FALSE, opts.label='myfigures'}
+ggplot(aes(Tempo,OPN_P,group=PZ, colour=mRS_3_Mesi>2), data=dt)+
+  geom_point()+
+  geom_line()+
+  facet_grid(. ~ mRS_3_Mesi>2)+
+  scale_color_discrete("mRS a 3 mesi >2")+
+  labs(x="", y="Osteopontina")
+
+ggplot(aes(Tempo,OPN_P,group=PZ, colour=mRS_3_Mesi>2), data=dt)+
+  geom_point()+
+  geom_line()+
+  scale_y_continuous(trans = "log10")+
+  facet_grid(. ~ mRS_3_Mesi>2)+
+  scale_color_discrete("mRS a 3 mesi >2")+
+  labs(x="", y="log(Osteopontina)")
+
+ggplot(aes(Tempo,CPP,group=PZ, colour=mRS_3_Mesi>2), data=dt)+
+  geom_point()+
+  geom_line()+
+  facet_grid(. ~ mRS_3_Mesi>2)+
+  scale_color_discrete("mRS a 3 mesi >2")+
+  labs(x="", y="CPP")
+```
+
+
+## Inferenza
+
+### Test di Mann-Whitney
+Vogliamo verificare se i livelli di Osteopontina plasmatica sono differenti tra i pazienti con outcome negativo (mRS a 3 mesi >2) e pazienti con outcome positivo.    
+Le concentrazioni di Osteopontina plasmatica hanno valori molto dispersi e con distribuzione fortemente asimmetrica, con questa numerosità campionaria il test statistico più indicato è quello di Mann-Whitney.
+
+L'unica differenza che raggiunge la significatività statistica (alpha 0.05) è tra le concentrazioni plasmatiche di Osteopontina al terzo giorno (`r pvals[2]`).
+
+La spiegazione di questo risultato poco intuitivo risiede nella dimensione campionaria, che non permette una stima sufficientemente precisa della differenza tra le due distribuzioni (intervalli di confidenza al 95%: Insorgenza  `r paste(round(wilcox.test(OPN_P ~ mRS_3_Mesi>2, data=dt[Tempo=="Insorgenza"], conf.int=T)$conf.int[1:2],2),collapse = " : ")`, 3° giorno `r paste(round(wilcox.test(OPN_P ~ mRS_3_Mesi>2, data=dt[Tempo=="3° giorno"], conf.int=T)$conf.int[1:2],2),collapse = " : ")`, 7° giorno `r paste(round(wilcox.test(OPN_P ~ mRS_3_Mesi>2, data=dt[Tempo=="7° giorno"], conf.int=T)$conf.int[1:2],2),collapse = " : ")`).
+
+
+### Modello logistico ad effetti misti  
+
+Dato l'obiettivo dello studio, un possibile approccio utile a stimare l'influenza della concentrazione plasmatica di Osteopontina sull'outcome a 3 mesi (valutato con mRS) è la regressione logistica. Dovendo gestire misure ripetute, occorre implementare una regressione logistica ad effetti misti (con questo si intende che il paziente è un effetto casuale, cioè un possibile soggetto estratto a caso da tutti i possibili soggetti eleggibili, ed i suoi parametri rilevati nei vari istanti temporali avranno, tra loro, una certa relazione).
+
+Dopo alcuni test e considerata la dimensione campionaria, sono stati determinati due modelli che permettono di valutare l'ipotesi principale. Entrambi i modelli utilizzano le concentrazioni plasmatiche di Osteopontina e il sesso come predittori, la differenza sta nella trasformazione logaritmica della variabile "Osteopontina". Questa trasformazione permette di gestire meglio variabili molto disperse, purtroppo però rende più complessa l'interpretazione dei risultati della regressione. Ovviamente entrambi i modelli hanno la stesso contenuto informativo, anche se la significatività statistica dei parametri risulta solamente nel modello con variabile trasformata. Per questi motivi verranno presentati i risultati di entrambi i modelli, ma discussi solo quelli del modello diretto.
+
+```{r models, echo=FALSE, warning=FALSE}
+fm1 <- glmer(mRS_3_Mesi>2 ~ OPN_P:Tempo+CPP:Tempo+(1|PZ), dt, 
+             family = binomial(link = "logit"))
+
+fm1a <- glmer(mRS_3_Mesi>2 ~ log(OPN_P):Tempo+CPP:Tempo+(1|PZ), dt, 
+             family = binomial(link = "logit"))
+
+fm2 <- glmer(mRS_3_Mesi>2 ~ OPN_P:Tempo+SESSO+(1|PZ), dt, 
+             family = binomial(link = "logit"))
+
+fm2a <- glmer(mRS_3_Mesi>2 ~ log(OPN_P):Tempo+SESSO+(1|PZ), dt, 
+             family = binomial(link = "logit"))
+
+```
+  
+  
+```{r model_direct, echo=FALSE}
+se <- sqrt(diag(vcov(fm2)))
+# table of estimates with 95% CI
+tab <- cbind(Est = fixef(fm2), LL = fixef(fm2) - 1.96 * se, 
+              UL = fixef(fm2) + 1.96 *se)
+lor<-exp(tab)
+knitr::kable(cbind(tidy(fm1)[2:7,1:3],
+                   p.value=frmtp(tidy(fm1)[2:7,5], markup = "markdown")),
+             caption="Modello diretto - CPP", digits=3)
+knitr::kable(cbind(tidy(fm2)[2:5,1:3],
+                   p.value=frmtp(tidy(fm2)[2:5,5], markup = "markdown")),
+             caption="Modello diretto - SESSO", digits=3)
+```
+  
+  
+```{r model_log, echo=FALSE}
+se <- sqrt(diag(vcov(fm2a)))
+# table of estimates with 95% CI
+tab <- cbind(Est = fixef(fm2a), LL = fixef(fm2a) - 1.96 * se, 
+              UL = fixef(fm2a) + 1.96 *se)
+lora<-exp(tab)
+knitr::kable(cbind(tidy(fm1a)[2:7,1:3],
+                   p.value=frmtp(tidy(fm1a)[2:7,5], markup = "markdown")),
+             caption="Modello con trasformazione - CPP", digits=3)
+knitr::kable(cbind(tidy(fm2a)[2:5,1:3],
+                   p.value=frmtp(tidy(fm2a)[2:5,5], markup = "markdown")),
+             caption="Modello con trasformazione", digits=3)
+```
+  
+Le donne, rispetto agli uomini, hanno un log odds di outcome negativo ridotta (`r round(log(lor[2]),2)`, odds ratio `r round(lor[2],2)`). Per ogni incremento unitario di concentrazione plasmatica di Osteopontina, il log odds aumenta di `r round(log(lor[3]),3)` (odds ratio `r round(lor[3],3)`) se viene misurata all'insorgenza, aumenta di `r round(log(lor[4]),3)` (odds ratio `r round(lor[4],3)`) se al 3° giorno e di `r round(log(lor[5]),3)` (odds ratio `r round(lor[5],3)`) se al 7°.  
+  
+Queste considerazioni possono essere fatte anche per il modello trasformato, ma invece di un incremento unitario della concentrazione plasmatica di Osteopontina bisogna pensare ad un incremento unitario del logaritmo della concentrazione plasmatica di Osteopontina, decisamente poco intuitivo.
+
+```{r or, echo=FALSE}
+knitr::kable(lor[2:5,], caption="Odds ratio modello diretto", digits=2)
+```
+  
+
+```{r or_log, echo=FALSE}
+knitr::kable(lora[2:5,], caption="Odds ratio modello con trasformazione", digits=2)
+```
+  
+I risultati ottenuti hanno diverse limitazioni (convergenza, distribuzione dei residui, variabili di interesse), tutte legate alla dimensione campionaria.
