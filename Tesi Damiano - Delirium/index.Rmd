@@ -1,0 +1,743 @@
+---
+title: "Delirium"
+author: "Fabio Carfagna [fabio.carfagna@med.uniupo.it]"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: html_document
+runtime: shiny
+---
+
+```{r setup, message=FALSE, echo=FALSE, warning=FALSE}
+library(knitr)
+library(data.table)
+library(ggplot2)
+library(moments)
+library(ggthemes)
+library(GGally)
+library(lme4)
+library(lmerTest)
+library(summarytools)
+library(qwraps2)
+library(dplyr)
+library(broom)
+library(sjPlot)
+library(stringi)
+library(ROCR)
+library(optimx)
+library(InformationValue)
+library(Amelia)
+library(ROCR)
+options(knitr.kable.NA = '-', knitr.table.format = 'pandoc', digits = 2)
+options(qwraps2_markup = 'markdown')
+opts_template$set(myfigures = list(fig.height = 6, fig.width = 8, dpi=300))
+st_options("round.digits",2)
+
+```
+```{r load, message=FALSE, echo=FALSE, warning=FALSE}
+dt<-data.table(read.csv(file = "Db  Simonini per fabio + bis minore 20.csv", 
+                        as.is = T,dec = "."))
+dt<-dt[Cognome!=""]
+#delirium
+dt[Delirium!="",tipo.delirium:=factor(Delirium,levels = c("ipo","iper","iper/ipo"))]
+dt[Delirium!="",Delirium:=factor("si",levels = c("no","si"))]
+dt[Delirium=="",Delirium:=factor("no",levels = c("no","si"))]
+#frazione eiezione
+dt[,FE:=factor(Frazione.d.eiezione)]
+#sesso
+dt[,Sesso:=factor(Sesso,levels=c("Femmina","Maschio"))]
+#ipertensione
+dt[Ipertens!="",Ipertens:=factor("si",levels = c("no","si"))]
+dt[Ipertens=="",Ipertens:=factor("no",levels = c("no","si"))]
+#diabete
+dt[,Diabete.insulino.dipendente:=factor(tolower(Diabete.insulino.dipendente),
+                                        levels = c("no","si"))]
+#Chirurgia aorta
+dt[Chirurgia.dell.aorta.ascend!="",Chirurgia.dell.aorta.ascend:=factor("si",
+                                        levels = c("no","si"))]
+dt[Chirurgia.dell.aorta.ascend=="",Chirurgia.dell.aorta.ascend:=factor("no",
+                                        levels = c("no","si"))]
+#Bypass cardiaco
+dt[By.pass.Cardiaco!="",By.pass.Cardiaco:=factor("si",
+                                        levels = c("no","si"))]
+dt[By.pass.Cardiaco=="",By.pass.Cardiaco:=factor("no",
+                                        levels = c("no","si"))]
+#Chirurgia.valvolare
+dt[Chirurgia.valvolare!="",Chirurgia.valvolare:=factor("si",
+                                        levels = c("no","si"))]
+dt[Chirurgia.valvolare=="",Chirurgia.valvolare:=factor("no",
+                                        levels = c("no","si"))]
+#TRASFUSIONI.INTRAOPERATORIE
+dt[,TRASFUSIONI.INTRAOPERATORIE:=factor(TRASFUSIONI.INTRAOPERATORIE)]
+#Clampaggio.aortico
+# solo uno non l'ha fatto, non mi interessa
+#Clampaggio.aortico.1
+#Sanguinamento..prime.12.ore.
+# solo uno non ha sanguinato, non mi interessa
+#TRASFUSIONI.POSTOPERATORIE..prime.12.Ore.
+dt[,TRASFUSIONI.POSTOPERATORIE..prime.12.Ore.:=factor(TRASFUSIONI.POSTOPERATORIE..prime.12.Ore.)]
+#BIS.40..min.
+dt[is.na(BIS.40..min.),BIS.40..min.:=0]
+dt[BIS.40..min.==0, BIS40:=factor("no",levels = c("no","si"))]
+dt[BIS.40..min.!=0, BIS40:=factor("si",levels = c("no","si"))]
+dt[BIS.40..min.==0,BIS.40..min.:=NA]
+#BIS.20..min.
+dt[,BIS..20:=as.numeric(BIS..20)]
+dt[is.na(BIS..20),BIS..20:=0]
+dt[BIS..20==0, BIS20:=factor("no",levels = c("no","si"))]
+dt[BIS..20!=0, BIS20:=factor("si",levels = c("no","si"))]
+dt[BIS..20==0,BIS..20:=NA]
+#SR.0..min.
+dt[is.na(SR.0..min.),SR.0..min.:=0]
+dt[SR.0..min.==0, SR0:=factor("no",levels = c("no","si"))]
+dt[SR.0..min.!=0, SR0:=factor("si",levels = c("no","si"))]
+dt[SR.0..min.==0,SR.0..min.:=NA]
+#SR.20..min.
+dt[is.na(SR.20..min.),SR.20..min.:=0]
+dt[SR.20..min.==0, SR20:=factor("no",levels = c("no","si"))]
+dt[SR.20..min.!=0, SR20:=factor("si",levels = c("no","si"))]
+dt[SR.20..min.==0,SR.20..min.:=NA]
+# vaso pressori
+dt[,vasoprex:=factor(vasoprex.new.g.kg.min,
+                     levels = c("Nessuno (0)",
+                                "Dopamina <=5 o Dobutamina (1)",
+                                "Dopa >5 Epi/Norepi <=0.1 (2)",
+                                "Dopa >5 Epi/Norepi >0.1 (3)"))]
+my_summary <-
+  with(dt,
+       list("Età (anni)" = tab_summary(Eta..anni),
+            "Sesso" = tab_summary(Sesso),
+            "Peso (kg)" = tab_summary(Peso..kg.),
+            "BMI" = tab_summary(Indice.Massa.Corporea),
+            "Ipertensione" = tab_summary(Ipertens),
+            "Diabete" = tab_summary(Diabete.insulino.dipendente),
+            "Euroscore" = tab_summary(EuroSCORE.II...LOGISTICO),
+            "Tempo con BIS<40 (min)" = tab_summary(BIS.40..min.),
+            "Tempo con BIS<20 (min)" = tab_summary(BIS..20),
+            "Tempo con SR>0 (min)" = tab_summary(SR.0..min.),
+            "Raggiunto SR>20" = tab_summary(SR20),
+            "Tempo con SR>20 (min)" = tab_summary(SR.20..min.),
+            "Trasfusioni intraoperatorie" = tab_summary(TRASFUSIONI.INTRAOPERATORIE),
+            "Trasfusioni postoperatorie (prime 12h)" = tab_summary(TRASFUSIONI.POSTOPERATORIE..prime.12.Ore.),
+            "Tempo totale di CEC (min)" = tab_summary(Tempo.totale.di.CEC),
+            "Vasopressori" = tab_summary(vasoprex)
+            ))
+set.seed(1234)
+p_vals_freq<-
+  list(chisq.test(table(dt$Sesso,dt$Delirium))$p.value,
+       chisq.test(table(dt$Ipertens,dt$Delirium))$p.value,
+       chisq.test(table(dt$Diabete.insulino.dipendente,dt$Delirium),
+                  simulate.p.value = T)$p.value,
+       chisq.test(table(dt$SR20,dt$Delirium))$p.value,
+       chisq.test(table(dt$TRASFUSIONI.INTRAOPERATORIE,dt$Delirium))$p.value,
+       chisq.test(table(dt$TRASFUSIONI.POSTOPERATORIE..prime.12.Ore.,
+                        dt$Delirium), simulate.p.value = T)$p.value,
+       kruskal.test(Delirium ~ vasoprex, data=dt)$p.value) %>%
+  lapply(frmtp) %>%
+  do.call(c, .)
+# base<-with(dt,
+#   list("Kurtosis età"=anscombe.test(Eta..anni),
+#        "Skewness età"=agostino.test(Eta..anni),
+#        "Kurtosis peso"=anscombe.test(Peso..kg.),
+#        "Skewness peso"=agostino.test(Peso..kg.),
+#        "Kurtosis BMI"=anscombe.test(Indice.Massa.Corporea),
+#        "Skewness BMI"=agostino.test(Indice.Massa.Corporea),
+#        "Kurtosis Euroscore"=anscombe.test(EuroSCORE.II...LOGISTICO),
+#        "Skewness Euroscore"=agostino.test(EuroSCORE.II...LOGISTICO),
+#        "Kurtosis T BIS<40"=anscombe.test(BIS.40..min.),
+#        "Skewness T BIS<40"=agostino.test(BIS.40..min.),
+#        "Kurtosis T SR>20"=anscombe.test(SR.20..min.),
+#        "Skewness T SR>20"=agostino.test(SR.20..min.),
+#        "Kurtosis T SR>0"=anscombe.test(SR.0..min.),
+#        "Skewness T SR>0"=agostino.test(SR.0..min.),
+#        "Kurtosis Tempo CEC"=anscombe.test(Tempo.totale.di.CEC),
+#        "Skewness Tempo CEC"=agostino.test(Tempo.totale.di.CEC)
+#        )
+# )
+# 
+# base_plot<-with(dt,
+#   list("Histogram età"=hist(Eta..anni),
+#        "QQPlot età"=qqnorm(Eta..anni),
+#        "Histogram peso"=hist(Peso..kg.),
+#        "QQPlot peso"=qqnorm(Peso..kg.),
+#        "Histogram BMI"=hist(Indice.Massa.Corporea),
+#        "QQPlot BMI"=qqnorm(Indice.Massa.Corporea),
+#        "Histogram Euroscore"=hist(EuroSCORE.II...LOGISTICO),
+#        "QQPlot Euroscore"=qqnorm(EuroSCORE.II...LOGISTICO),
+#        "Histogram T BIS<40"=hist(BIS.40..min.),
+#        "QQPlot T BIS<40"=qqnorm(BIS.40..min.),
+#        "Histogram T SR>20"=hist(SR.20..min.),
+#        "QQPlot T SR>20"=qqnorm(SR.20..min.),
+#        "Histogram T SR>0"=hist(SR.0..min.),
+#        "QQPlot T SR>0"=qqnorm(SR.0..min.),
+#        "Histogram Tempo CEC"=hist(Tempo.totale.di.CEC),
+#        "QQPlot Tempo CEC"=qqnorm(Tempo.totale.di.CEC)
+#        )
+# )
+
+#sapply(base_plot, plot)
+
+p_vals_dist<-
+  list(wilcox.test(Eta..anni~Delirium, data=dt)$p.value,
+       t.test(Peso..kg.~Delirium, data=dt)$p.value,
+       wilcox.test(Indice.Massa.Corporea~Delirium, data=dt)$p.value,
+       wilcox.test(EuroSCORE.II...LOGISTICO~Delirium, data=dt)$p.value,
+       wilcox.test(BIS.40..min.~Delirium, data=dt[BIS.40..min.>0])$p.value,
+       wilcox.test(BIS..20~Delirium, data=dt[BIS..20>0])$p.value,
+       wilcox.test(SR.0..min.~Delirium, data=dt[SR.0..min.>0])$p.value,
+       wilcox.test(SR.20..min.~Delirium, data=dt[SR20=="si"])$p.value,
+       wilcox.test(Tempo.totale.di.CEC~Delirium, data=dt)$p.value
+       ) %>%
+  lapply(frmtp) %>%
+  do.call(c, .)
+```
+```{r commenti-euroscore, message=FALSE, echo=FALSE}
+# By selecting  "Logistic euroSCORE" - euroSCORE predicted mortality is calculated as follows (manuscript in preparation):
+# 
+#    Predicted mortality =   e (β0 + åbi Xi) / 1+ e (β0 + åbi Xi)
+# 
+ # βo is the constant of the logistic regression equation = -4.789594
+ # 
+ # βi is the coefficient of the variable Xi in the logistic regression equation provided in the table below.
+ # 
+ # Xi = 1 if a categorical risk factor is present and 0 if it is absent
+# Osservazioni
+# 
+# [1]    patologia polmonare cronica   uso prolungato di broncodilatatori o corticosteroidi
+# 
+# [2]    arteriopatia extracardiaca  claudicatio,stenosi carotide > 50 %,chirugia aorta addominale,arterite
+# 
+# [3]    disfunzione neurologica   grave compromissione della deambulazione o lesioni impedenti normale vita di relazione
+# 
+# [4]    endocardite attiva   sugli antibiotici a chirurgia  
+# 
+# [5]    condizioni preoperatorie   FV, TV, MCE, IOT, Supporto ventilatorio, inotropi, IABP, shock cardiogeno
+# 
+# [6]    angina instabile     angina instabile con infusione preoperatoria di nitroderivati
+# 
+# [7]    IMA recente   IMA recente <90gg
+# 
+# [8]    ipertensione polmonare   PAP >60mmHg
+# 
+# [9]    emergenza   chirurgia prima di inizio della gioranata lavorativa prossima
+# Patient-related factors 	Beta
+# Age 	
+# 
+#     Continuous
+# 
+#      
+# 
+# 	0.0666354
+# Sex 	
+# 
+#     female
+# 
+#      
+# 
+# 	0.3304052
+# Chronic pulmonary disease 	
+# 
+#     longterm use of bronchodilators or steroids for lung disease
+# 
+#      
+# 
+# 	0.4931341
+# Extracardiac arteriopathy 	
+# 
+#     any one or more of the following: claudication, carotid occlusion or >50% stenosis, previous or planned intervention on the abdominal aorta,limb arteries or carotids
+# 
+#      
+# 
+# 	0.6558917
+# Neurological dysfunction disease 	
+# 
+#     severely affecting ambulation or day-to-day functioning
+# 
+#      
+# 
+# 	0.841626
+# Previous cardiac surgery 	
+# 
+#     requiring opening of the pericardium
+# 
+#      
+# 
+# 	1.002625
+# Serum creatinine 	
+# 
+#     >200m micromol/L preoperatively
+# 
+#      
+# 
+# 	0.6521653
+# Active endocarditis 	
+# 
+#     patient still under antibiotic treatment for endocarditis at the time of surgery
+# 
+#      
+# 
+# 	1.101265
+# Critical preoperative state 	
+# 
+#     any one or more of the following: ventricular tachycardia or fibrillation or aborted sudden death, preoperative cardiac massage, preoperative ventilation before arrival in the anaesthetic room,preoperative inotropic support, intraaortic balloon counterpulsation or preoperative acute renal failure (anuria or oliguria<10 ml/hour)
+# 
+#      
+# 
+# 	0.9058132
+# Cardiac-related factors 	Beta
+# Unstable angina 	
+# 
+#     rest angina requiring iv nitrates until arrival in the anaesthetic room
+# 
+#      
+# 
+# 	0.5677075
+# LV dysfunction 	
+# 
+#     moderate or LVEF30-50%
+# 
+# 	0.4191643
+# 	
+# 
+#     poor or LVEF <30
+# 
+# 	1.094443
+# Recent myocardial infarct 	
+# 
+#     (<90 days)
+# 
+#      
+# 
+# 	0.5460218
+# Pulmonary hypertension 	
+# 
+#     Systolic PA pressure>60 mmHg
+# 
+# 	0.7676924
+# 		
+# Operation-related factors 	Beta
+# Emergency 	
+# 
+#     carried out on referral before the beginning of the next working day
+# 
+#  
+# 
+# 	0.7127953
+# Other than isolated CABG 	
+# 
+#     major cardiac procedure other than or in addition to CABG
+# 
+#      
+# 
+# 	0.5420364
+# Surgery on thoracic aorta 	
+# 
+#     for disorder of ascending, arch or descending aorta
+# 
+#      
+# 
+# 	1.159787
+# Postinfarct septal rupture 	
+# 
+#      
+#      
+# 
+# 	1.462009
+```
+##Descrittive ed inferenza
+Le frequenze a due categorie sono state analizzate con test $\chi2$, le frequenze a più categorie con il test non parametrico di Kruskal-Wallis, le differenze di distribuzione sono state valutate con il test di Mann-Whitney.  
+
+```{r tab.desc, warning=FALSE, echo=FALSE, results='asis'}
+whole <- summary_table(dt, my_summary)
+grouped <- summary_table(dplyr::group_by(dt, Delirium), my_summary)
+grouped <- cbind(whole,grouped, "P-value" = "")
+grouped[rownames(grouped)%in%c("Maschio","si","Trasfusioni intraoperatorie",
+                               "Trasfusioni postoperatorie",
+                               "Dopa >5 Epi/Norepi >0.1 (3)"),
+            "P-value"] <- p_vals_freq
+grouped[grepl("mean \\(sd\\)", rownames(grouped)),
+            "P-value"] <- p_vals_dist
+
+print(grouped, cnames=c(paste0("Totale Casi (n = ",
+                               dt[,.N],")"),
+                        paste0("Delirium free (n = ",
+                               dt[Delirium=="no",.N],")"),
+                        paste0("Delirium post operatorio (n = ", 
+                               dt[Delirium=="si",.N],")"),
+                        "P-value"))
+
+```
+  
+```{r plot_corr, warning=FALSE, message=FALSE, echo=FALSE, fig.height = 6, fig.width = 10, dpi=300, fig.cap="Correlazione tra le principali variabili in esame"}
+ggpairs(dt[,.(EuroSCORE.II...LOGISTICO,BIS.40..min.,SR.20..min.,SR.0..min.,
+              Tempo.totale.di.CEC,vasoprex)],
+        ggplot2::aes(colour=factor(dt$Delirium)),
+        title = "Delirium", 
+        columnLabels=c("Euroscore","Tempo BIS<40","Tempo SR>20","Tempo SR>0",
+                       "Tempo totale di CEC","Vasopressori"))
+```
+  
+  
+```{r plot_eta, warning=FALSE, echo=FALSE, opts.label='myfigures', fig.cap="Distribuzione Età - il punto rosso indica la media"}
+ggplot(data=dt, aes(x=Delirium,fill=Delirium,Eta..anni))+
+  geom_boxplot(colour=NA, show.legend = F)+
+  geom_boxplot(show.legend = F)+
+  labs(title="Età", x="Delirium", y="Età (anni)", fill="")+
+  stat_summary(fun.y=mean, colour="darkred", geom="point",
+               shape=18, size=3,show.legend = FALSE) +
+  stat_summary(fun.y=mean, geom="text", show.legend = FALSE,
+                 vjust=-0.9, aes( label=round(..y.., digits=0)))+
+  scale_y_continuous()+
+  scale_fill_pander()+
+  theme_economist_white()+
+  theme(legend.position="bottom")
+```
+  
+  
+```{r plot_peso, warning=FALSE, echo=FALSE, opts.label='myfigures', fig.cap="Distribuzione Peso - il punto rosso indica la media"}
+ggplot(data=dt, aes(x=Delirium,fill=Delirium,Peso..kg.))+
+  geom_boxplot(colour=NA, show.legend = F)+
+  geom_boxplot(show.legend = F)+
+  labs(title="Peso", x="Delirium", y="Peso (kg)", fill="")+
+  stat_summary(fun.y=mean, colour="darkred", geom="point",
+               shape=18, size=3,show.legend = FALSE) +
+  stat_summary(fun.y=mean, geom="text", show.legend = FALSE,
+                 vjust=-0.7, aes( label=round(..y.., digits=1)))+
+  scale_y_continuous()+
+  theme_economist_white()+
+  scale_fill_pander()+
+  theme(legend.position="bottom")
+```
+  
+  
+```{r plot_euroscore, warning=FALSE, echo=FALSE, opts.label='myfigures', fig.cap="Distribuzione EuroSCORE - il punto rosso indica la media"}
+ggplot(data=dt, aes(x=Delirium,fill=Delirium,EuroSCORE.II...LOGISTICO))+
+  geom_boxplot(colour=NA, show.legend = F)+
+  geom_boxplot(show.legend = F)+
+  labs(title="EuroSCORE", x="Delirium", y="EuroSCORE (logistico)", fill="")+
+  stat_summary(fun.y=mean, colour="darkred", geom="point",
+               shape=18, size=3,show.legend = FALSE) +
+  stat_summary(fun.y=mean, geom="text", show.legend = FALSE,
+                 vjust=-0.7, aes( label=round(..y.., digits=1)))+
+  scale_y_continuous()+
+  theme_economist_white()+
+  scale_fill_pander()+
+  theme(legend.position="bottom")
+```
+  
+```{r plot_bis, warning=FALSE, echo=FALSE, opts.label='myfigures', fig.cap="Distribuzione tempo con BIS<40 - il punto rosso indica la media"}
+ggplot(data=dt, aes(x=Delirium,fill=Delirium,BIS.40..min.))+
+  geom_boxplot(colour=NA, show.legend = F)+
+  geom_boxplot(show.legend = F)+
+  labs(title="Tempo con BIS<40", x="Delirium", y="Tempo (min)", fill="")+
+  stat_summary(fun.y=mean, colour="darkred", geom="point",
+               shape=18, size=3,show.legend = FALSE) +
+  stat_summary(fun.y=mean, geom="text", show.legend = FALSE,
+                 vjust=-0.7, aes( label=round(..y.., digits=1)))+
+  scale_y_continuous()+
+  theme_economist_white()+
+  scale_fill_pander()+
+  theme(legend.position="bottom")
+```
+```{r plot_bis20, warning=FALSE, echo=FALSE, opts.label='myfigures', fig.cap="Distribuzione tempo con BIS<20 - il punto rosso indica la media"}
+ggplot(data=dt, aes(x=Delirium,fill=Delirium,BIS..20))+
+  geom_boxplot(colour=NA, show.legend = F)+
+  geom_boxplot(show.legend = F)+
+  labs(title="Tempo con BIS<20", x="Delirium", y="Tempo (min)", fill="")+
+  stat_summary(fun.y=mean, colour="darkred", geom="point",
+               shape=18, size=3,show.legend = FALSE) +
+  stat_summary(fun.y=mean, geom="text", show.legend = FALSE,
+                 vjust=-0.7, aes( label=round(..y.., digits=1)))+
+  scale_y_continuous()+
+  theme_economist_white()+
+  scale_fill_pander()+
+  theme(legend.position="bottom")
+```
+  
+  
+```{r plot_sr20, warning=FALSE, echo=FALSE, opts.label='myfigures', fig.cap="Distribuzione tempo con SR>20 - il punto rosso indica la media"}
+ggplot(data=dt, aes(x=Delirium,fill=Delirium,SR.20..min.))+
+  geom_boxplot(colour=NA, show.legend = F)+
+  geom_boxplot(show.legend = F)+
+  labs(title="Tempo con SR>20", x="Delirium", y="Tempo (min)", fill="")+
+  stat_summary(fun.y=mean, colour="darkred", geom="point",
+               shape=18, size=3,show.legend = FALSE) +
+  stat_summary(fun.y=mean, geom="text", show.legend = FALSE,
+                 vjust=-0.7, aes( label=round(..y.., digits=1)))+
+  scale_y_continuous()+
+  theme_economist_white()+
+  scale_fill_pander()+
+  theme(legend.position="bottom")
+```
+```{r plot_sr0, warning=FALSE, echo=FALSE, opts.label='myfigures', fig.cap="Distribuzione tempo con SR>0 - il punto rosso indica la media"}
+ggplot(data=dt, aes(x=Delirium,fill=Delirium,SR.0..min.))+
+  geom_boxplot(colour=NA, show.legend = F)+
+  geom_boxplot(show.legend = F)+
+  labs(title="Tempo con SR>0", x="Delirium", y="Tempo (min)", fill="")+
+  stat_summary(fun.y=mean, colour="darkred", geom="point",
+               shape=18, size=3,show.legend = FALSE) +
+  stat_summary(fun.y=mean, geom="text", show.legend = FALSE,
+                 vjust=-0.7, aes( label=round(..y.., digits=1)))+
+  scale_y_continuous()+
+  scale_fill_pander()+
+  theme_economist_white()+
+  theme(legend.position="bottom")
+```
+
+##Modello
+
+```{r logm, warning=FALSE, echo=FALSE, message=FALSE}
+fm1_l <- glm(Delirium=="si" ~ Eta..anni, 
+             data = dt, family=binomial)
+fm2_l <- glm(Delirium=="si" ~ Eta..anni + EuroSCORE.II...LOGISTICO, 
+             data = dt, family=binomial)
+#anova(fm1_l,fm2_l,test="Chisq")
+fm2_l1 <- glm(Delirium=="si" ~ Eta..anni + EuroSCORE.II...LOGISTICO, 
+             data = dt[BIS40=="si"], family=binomial)
+fm3_l <- glm(Delirium=="si" ~ Eta..anni + EuroSCORE.II...LOGISTICO + 
+             BIS.40..min., 
+             data = dt, family=binomial)
+
+fm3_l_sr <- glm(Delirium=="si" ~ Eta..anni + EuroSCORE.II...LOGISTICO + 
+             SR.0..min., 
+             data = dt, family=binomial)
+#anova(fm2_l1,fm3_l,test="Chisq")
+fm3_l_i <- glm(factor(Delirium=="si") ~ Eta..anni + EuroSCORE.II...LOGISTICO * 
+             BIS.40..min., 
+             data = dt, family=binomial)
+#!!! interazione euroscore BIS
+fm3_l1 <- glm(Delirium=="si" ~ Eta..anni + EuroSCORE.II...LOGISTICO + 
+             BIS.40..min., 
+             data = dt[SR.0..min.>0], family=binomial)
+
+fm4_l <- glm(Delirium=="si" ~ Eta..anni + EuroSCORE.II...LOGISTICO + 
+             BIS.40..min. + SR.0..min., 
+             data = dt, family=binomial)
+#anova(fm3_l1,fm4_l,test="Chisq")
+fm5_l <- glm(Delirium=="si" ~ Eta..anni + EuroSCORE.II...LOGISTICO + 
+             BIS.40..min. + TRASFUSIONI.INTRAOPERATORIE, 
+             data = dt, family=binomial)
+
+fm6_l <- glm(Delirium=="si" ~ Eta..anni + EuroSCORE.II...LOGISTICO + 
+             BIS.40..min. + vasoprex, 
+             data = dt, family=binomial)
+#anova(fm3_l,fm6_l,test="Chisq")
+
+fm_fasullo <- glm(Delirium=="si"  ~ Eta..anni  + 
+                    BIS..20,
+                  data = dt, family=binomial)
+```
+  
+I modelli di regressione logistica identificati utilizzano come predittori l'età, l'EuroSCORE, il tempo trascorso con BIS<40, il tempo trascorso con SR>0, la necessità di trasfusioni intraoperatorie e l'utilizzo di vasopressori.  
+I coefficienti di regressione ottenuti nei modelli rappresentano la variazione del logit ($logit(p(x)) = log (\frac{p(x)}{1 − p(x)}) = log(OR) = \alpha+\beta x$) per ogni cambiamento unitario del predittore. Visto che il logit non è intuitivo, di solito si valuta l'effetto del predittore sull'esponenziale del coefficiente di regressione - l'odds ratio.  
+
+```{r coef-p1, warning=FALSE, echo=FALSE, message=FALSE, results='asis'}
+tb<-data.table(tidy(fm2_l,conf.int = T))
+eq<-paste0("$logit(Delirium) = ", round(tb$estimate[1],2)," + ",
+           round(tb$estimate[2],4)," * Età + ",
+           round(tb$estimate[3],4)," * EuroSCORE$")
+knitr::kable(tb[,.(" "= c("Intercetta","Età (anni)","EuroSCORE II"), 
+                   "OR"=exp(estimate),"OR.lower"=exp(conf.low),
+                   "OR.higher"=exp(conf.high),
+                   "$\\beta$"=estimate,
+                   "$\\beta_{lower}$"=conf.low,
+                   "$\\beta_{upper}$"=conf.high,
+                   "P-Value"=frmtp(p.value))][-1],digits = 4 
+             )
+```
+  
+`r eq`   
+
+```{r coef-p2, warning=FALSE, echo=FALSE, message=FALSE, results='asis'}
+tb<-data.table(tidy(fm3_l,conf.int = T))
+eq<-paste0("$logit(Delirium) = ", round(tb$estimate[1],2)," + ",
+           round(tb$estimate[2],4)," * Età + ",
+           round(tb$estimate[3],4)," * EuroSCORE + ",
+           round(tb$estimate[4],4)," * Tempo BIS<40$")
+knitr::kable(tb[,.(" "= c("Intercetta","Età (anni)","EuroSCORE II", 
+                          "Tempo BIS<40 (min)"), 
+                   "OR"=exp(estimate),"OR.lower"=exp(conf.low),
+                   "OR.higher"=exp(conf.high),
+                   "$\\beta$"=estimate,
+                   "$\\beta_{lower}$"=conf.low,
+                   "$\\beta_{upper}$"=conf.high,
+                   "P-Value"=frmtp(p.value))][-1],digits = 4 
+             )
+```
+  
+`r eq`  
+
+```{r coef-p3, warning=FALSE, echo=FALSE, message=FALSE, results='asis'}
+tb<-data.table(tidy(fm4_l,conf.int = T))
+eq<-paste0("$logit(Delirium) = ", round(tb$estimate[1],2)," + ",
+           round(tb$estimate[2],4)," * Età + ",
+           round(tb$estimate[3],4)," * EuroSCORE + ",
+           round(tb$estimate[4],4)," * Tempo BIS<40 +",
+           round(tb$estimate[5],4)," * Tempo SR>0$")
+knitr::kable(tb[,.(" "= c("Intercetta","Età (anni)","EuroSCORE II", 
+                          "Tempo BIS<40 (min)","Tempo SR>0 (min)"), 
+                   "OR"=exp(estimate),"OR.lower"=exp(conf.low),
+                   "OR.higher"=exp(conf.high),
+                   "$\\beta$"=estimate,
+                   "$\\beta_{lower}$"=conf.low,
+                   "$\\beta_{upper}$"=conf.high,
+                   "P-Value"=frmtp(p.value))][-1],digits = 4 
+             )
+```
+  
+`r eq` 
+
+```{r coef-p4, warning=FALSE, echo=FALSE, message=FALSE, results='asis'}
+tb<-data.table(tidy(fm5_l,conf.int = T))
+eq<-paste0("$logit(Delirium) = ", round(tb$estimate[1],2)," + ",
+           round(tb$estimate[2],4)," * Età + ",
+           round(tb$estimate[3],4)," * EuroSCORE + ",
+           round(tb$estimate[4],4)," * Tempo BIS<40 +",
+           round(tb$estimate[5],4)," * Transfusioni intraoperatorie$")
+knitr::kable(tb[,.(" "= c("Intercetta","Età (anni)","EuroSCORE II", 
+                          "Tempo BIS<40 (min)",
+                          "Transfusioni intraoperatorie"), 
+                   "OR"=exp(estimate),"OR.lower"=exp(conf.low),
+                   "OR.higher"=exp(conf.high),
+                   "$\\beta$"=estimate,
+                   "$\\beta_{lower}$"=conf.low,
+                   "$\\beta_{upper}$"=conf.high,
+                   "P-Value"=frmtp(p.value))][-1],digits = 4 
+             )
+```
+  
+`r eq`  
+
+```{r coef-p6, warning=FALSE, echo=FALSE, message=FALSE, results='asis'}
+tb<-data.table(tidy(fm6_l,conf.int = T))
+eq<-paste0("$logit(Delirium) = ", round(tb$estimate[1],2)," + ",
+           round(tb$estimate[2],4)," * Età + ",
+           round(tb$estimate[3],4)," * EuroSCORE + ",
+           round(tb$estimate[4],4)," * Tempo BIS<40 +",
+           round(tb$estimate[5],4)," * vasoprexDopamina <=5 +",
+           round(tb$estimate[6],4)," * vasoprexDopa >5 Epi/Norepi <=0.1 +",
+           round(tb$estimate[7],4)," * vasoprexDopa >5 Epi/Norepi >0.1$")
+knitr::kable(tb[,.(" "= c("Intercetta","Età (anni)","EuroSCORE II", 
+                          "Tempo BIS<40 (min)",
+                          "vasoprexDopamina <=5 o Dobutamina",
+                          "vasoprexDopa >5 Epi/Norepi <=0.1 (2)",
+                          "vasoprexDopa >5 Epi/Norepi >0.1 (3)"),
+                   "OR"=exp(estimate),"OR.lower"=exp(conf.low),
+                   "OR.higher"=exp(conf.high),
+                   "$\\beta$"=estimate,
+                   "$\\beta_{lower}$"=conf.low,
+                   "$\\beta_{upper}$"=conf.high,
+                   "P-Value"=frmtp(p.value))][-1],digits = 4 
+             )
+```
+  
+`r eq` 
+
+###Modello finale
+I coefficienti del modello finale, determinato tramite likelihood ratio tests tra i modelli sopra presentati, sono:  
+```{r coef-p, warning=FALSE, echo=FALSE, message=FALSE, results='asis'}
+tb<-data.table(tidy(fm3_l,conf.int = T))
+eq<-paste0("$logit(Delirium) = ", round(tb$estimate[1],2)," + ",
+           round(tb$estimate[2],4)," * Età + ",
+           round(tb$estimate[3],4)," * EuroSCORE + ",
+           round(tb$estimate[4],4)," * Tempo BIS<40$")
+knitr::kable(tb[,.(" "= c("Intercetta","Età (anni)","EuroSCORE II", 
+                          "Tempo BIS<40 (min)"), 
+                   "OR"=exp(estimate),"OR.lower"=exp(conf.low),
+                   "OR.higher"=exp(conf.high),
+                   "$\\beta$"=estimate,
+                   "$\\beta_{lower}$"=conf.low,
+                   "$\\beta_{upper}$"=conf.high,
+                   "P-Value"=frmtp(p.value))][-1],digits = 4 
+             )
+```
+  
+```{r plot_roc, message=FALSE, warning=FALSE, echo=FALSE, opts.label='myfigures', fig.cap="ROC curve"}
+plotROC(dt[,as.numeric(Delirium=="si")], predict(fm3_l,
+                                                 newdata = dt,
+                                                 type = "response"))
+```
+  
+`r eq`    
+  
+E' possibile calcolare anche la probabilità di sviluppare l'evento come  
+
+$p(x)=\frac{e^{\alpha+\beta}}{1+e^{\alpha+\beta}}$
+  
+Vengono di seguito presentate le probabilità predette di sviluppare delirium post intervento in funzione del tempo passato con BIS <40, in tre classi di età, e in funzione dell'EuroSCORE, sempre in tre classi di età.  
+
+```{r plot_log-BIS, message=FALSE, warning=FALSE, echo=FALSE, opts.label='myfigures', fig.cap="Probabilità di sviluppare delirium post-operatorio - Tempo BIS<40"}
+plot_model(fm3_l,type="eff",terms = c("BIS.40..min.",
+                                      "Eta..anni [40,50,60,70,80]"),
+           title = "Probabilità predette di svillupare delirium",
+           axis.title = c("Tempo BIS<40 (min)","Probabilità"),
+           legend.title = "Classi d'età", ci.lvl = NA)+
+  scale_colour_discrete()+
+  theme(legend.position="bottom")
+```
+  
+```{r plot_log-escore, message=FALSE, warning=FALSE, echo=FALSE, opts.label='myfigures', fig.cap="Probabilità di sviluppare delirium post-operatorio - EuroSCORE II"}
+plot_model(fm3_l,type="eff",terms = c("EuroSCORE.II...LOGISTICO",
+                                      "Eta..anni [40,50,60,70,80]"),
+           title = "Probabilità predette di svillupare delirium",
+           axis.title = c("EuroSCORE II (logistico)","Probabilità"),
+           legend.title = "Classi d'età", ci.lvl = NA)+
+  scale_colour_discrete()+
+  theme(legend.position="bottom")
+```
+###SR
+```{r coef-p_sr, warning=FALSE, echo=FALSE, message=FALSE, results='asis'}
+tb<-data.table(tidy(fm3_l_sr,conf.int = T))
+eq<-paste0("$logit(Delirium) = ", round(tb$estimate[1],2)," + ",
+           round(tb$estimate[2],4)," * Età + ",
+           round(tb$estimate[3],4)," * EuroSCORE + ",
+           round(tb$estimate[4],4)," * Tempo SR>0$")
+knitr::kable(tb[,.(" "= c("Intercetta","Età (anni)","EuroSCORE II", 
+                          "Tempo SR>0 (min)"), 
+                   "OR"=exp(estimate),"OR.lower"=exp(conf.low),
+                   "OR.higher"=exp(conf.high),
+                   "$\\beta$"=estimate,
+                   "$\\beta_{lower}$"=conf.low,
+                   "$\\beta_{upper}$"=conf.high,
+                   "P-Value"=frmtp(p.value))][-1],digits = 4 
+             )
+```
+
+`r eq`  
+
+```{r plot_log-sr0, message=FALSE, warning=FALSE, echo=FALSE, opts.label='myfigures', fig.cap="Probabilità di sviluppare delirium post-operatorio - Tempo con SR > 0"}
+plot_model(fm3_l_sr,type="eff",terms = c("SR.0..min.",
+                                      "Eta..anni [40,50,60,70,80]"),
+           title = "Probabilità predette di svillupare delirium",
+           axis.title = c("Tempo con SR>0 (min)","Probabilità"),
+           legend.title = "Classi d'età", ci.lvl = NA)+
+  scale_colour_discrete()+
+  theme(legend.position="bottom")
+```
+
+###BIS < 20
+```{r coef-bis20, warning=FALSE, echo=FALSE, message=FALSE, results='asis'}
+tb<-data.table(tidy(fm_fasullo,conf.int = T))
+eq<-paste0("$logit(Delirium) = ", round(tb$estimate[1],2)," + ",
+           round(tb$estimate[2],4)," * Età + ",
+           round(tb$estimate[3],4)," * Tempo BIS<20$")
+knitr::kable(tb[,.(" "= c("Intercetta","Età (anni)", 
+                          "Tempo BIS<20 (min)"), 
+                   "OR"=exp(estimate),"OR.lower"=exp(conf.low),
+                   "OR.higher"=exp(conf.high),
+                   "$\\beta$"=estimate,
+                   "$\\beta_{lower}$"=conf.low,
+                   "$\\beta_{upper}$"=conf.high,
+                   "P-Value"=frmtp(p.value))][-1],digits = 4 
+             )
+```
+  
+`r eq`  
+
+```{r plot_log-bis20, message=FALSE, warning=FALSE, echo=FALSE, opts.label='myfigures', fig.cap="Probabilità di sviluppare delirium post-operatorio - Tempo con bis < 20"}
+plot_model(fm_fasullo,type="eff",terms = c("BIS..20",
+                                      "Eta..anni [40,50,60,70,80]"),
+           title = "Probabilità predette di svillupare delirium",
+           axis.title = c("Tempo con BIS<20 (min)","Probabilità"),
+           legend.title = "Classi d'età")+
+  scale_colour_discrete()+
+  theme(legend.position="bottom")
+```

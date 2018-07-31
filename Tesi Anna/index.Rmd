@@ -1,0 +1,359 @@
+---
+title: "TEA carotidea: esperienze anestesiologiche a confronto"
+author: "Fabio Carfagna [fabio.carfagna@med.uniupo.it]"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: html_document
+runtime: shiny
+---
+
+```{r setup, message=FALSE, echo=FALSE, warning=FALSE}
+library(knitr)
+library(data.table)
+library(ggplot2)
+library(ggthemes)
+library(lme4)
+library(lmerTest)
+library(summarytools)
+library(qwraps2)
+library(dplyr)
+library(broom)
+options(knitr.kable.NA = '-', knitr.table.format = 'pandoc', digits = 2)
+options(qwraps2_markup = 'markdown')
+opts_template$set(myfigures = list(fig.height = 6, fig.width = 7))
+st_options("round.digits",2)
+
+```
+
+```{r load, message=FALSE, echo=FALSE, warning=FALSE}
+dt<-data.table(read.csv("database-2.csv",as.is = T))
+dt<-dt[!is.na(X)]
+setnames(dt,c("X","X.1","X.2","X.3","X.4","X.5","X.6","X.7","X.8","X.9","X.10","X.11"),
+         c("Paziente","Gruppo","BS.lido","BS.chiro","BS.mepi1","BS.mepi2","BI.chiro","BP.chiro",
+           "Infiltrazione.lido","Infiltrazione.chiro","Infiltrazione.mepi1",
+           "Infiltrazione.mepi2"))
+dt[,Gruppo:=factor(Gruppo,levels=c(1,2,3),
+                   labels = c("Categoria A", "Categoria B","Categoria C"))]
+
+dt[,BP:=as.numeric(BP.chiro)]
+dt[,BI:=as.numeric(BI.chiro)]
+dt[,BS:=sum(as.numeric(BS.mepi2),as.numeric(BS.mepi1),as.numeric(BS.chiro),as.numeric(BS.lido),na.rm=T),
+   by=Paziente]
+dt[BS==0,BS:=NA]
+
+dt[tosse=="",tosse:="no"]
+dt[disfonia=="",disfonia:="no"]
+dt[diff.diglutire=="",diff.diglutire:="no"]
+dt[,complicanze:="no"]
+dt[tosse=="si"|disfonia=="si"|diff.diglutire=="si",complicanze:="si"]
+dt[,complicanze:=factor(complicanze)]
+dt[,tipo.blocco:=""]
+dt[!is.na(BS),tipo.blocco:=paste(tipo.blocco,"BS")]
+dt[!is.na(BI),tipo.blocco:=paste(tipo.blocco,"BI")]
+dt[!is.na(BP),tipo.blocco:=paste(tipo.blocco,"BP")]
+dt[,tipo.blocco:=trimws(tipo.blocco)]
+dt[tipo.blocco%like%"BI",tipo.blocco.s:="BI"]
+dt[tipo.blocco%like%"BP",tipo.blocco.s:="BP"]
+dt[,tipo.blocco.s:=factor(tipo.blocco.s)]
+
+dt[,supplemento:=sum(intra.cute,perivascolare,na.rm=T),by=Paziente]
+
+my_summary <-
+  with(dt,
+       list(
+            "Tempo anestesia" = tab_summary(tempo.anestesia),
+            "Tempo tra anestesia e chirurgia" = tab_summary(tempo.tra.anest.e.chir),
+            "Tempo intervento" = tab_summary(tempo.intervento),
+            "Tipo blocco" = tab_summary(tipo.blocco),
+            "supplemento" = tab_summary(supplemento),
+            "complicanze" = tab_summary(complicanze)
+            ))
+my_summary_c <-
+  with(dt,
+       list("Gruppo" = tab_summary(Gruppo),
+            "Tempo anestesia" = tab_summary(tempo.anestesia),
+            "Tempo tra anestesia e chirurgia" = tab_summary(tempo.tra.anest.e.chir),
+            "Tempo intervento" = tab_summary(tempo.intervento),
+            "supplemento" = tab_summary(supplemento),
+            "complicanze" = tab_summary(complicanze)
+            ))
+# my_summary_t <-
+#   with(dt,
+#        list("Osteopontina Plasma" = tab_summary(OPN_P),
+#             "Osteopontina Liquor" = tab_summary(OPN_L),
+#             "PCR" = tab_summary(PCR),
+#             "CPP" = tab_summary(CPP)))
+# 
+pvals <-
+  list(wilcox.test(dt[Gruppo=="Categoria B"]$tempo.anestesia, 
+                   dt[Gruppo=="Categoria A"]$tempo.anestesia)$p.value,
+       wilcox.test(dt[Gruppo=="Categoria B"]$tempo.anestesia, 
+                   dt[Gruppo=="Categoria C"]$tempo.anestesia)$p.value,
+       wilcox.test(dt[Gruppo=="Categoria A"]$tempo.anestesia, 
+                   dt[Gruppo=="Categoria C"]$tempo.anestesia)$p.value,
+       wilcox.test(dt[Gruppo=="Categoria B"]$tempo.tra.anest.e.chir, 
+                   dt[Gruppo=="Categoria A"]$tempo.tra.anest.e.chir)$p.value,
+       wilcox.test(dt[Gruppo=="Categoria B"]$tempo.tra.anest.e.chir, 
+                   dt[Gruppo=="Categoria C"]$tempo.tra.anest.e.chir)$p.value,
+       wilcox.test(dt[Gruppo=="Categoria A"]$tempo.tra.anest.e.chir, 
+                   dt[Gruppo=="Categoria C"]$tempo.tra.anest.e.chir)$p.value) %>%
+  lapply(frmtp) %>%
+  do.call(c, .)
+```
+
+## Descrittive  
+
+```{r tab.desc, warning=FALSE, echo=FALSE, results='asis'}
+whole <- summary_table(dt, my_summary)
+grouped <- summary_table(dplyr::group_by(dt, Gruppo), my_summary)
+print(cbind(whole,grouped))
+```
+
+```{r plot_interventi.esp, warning=FALSE, echo=FALSE, opts.label='myfigures', fig.cap="Interventi - Esperienza"}
+ggplot(dt[,.(interventi=.N),by=Gruppo],
+       aes(y=interventi,x=Gruppo,fill=Gruppo,label=interventi))+
+  geom_col()+
+  labs(title="Interventi", x="Esperienza", y="Numero Interventi",
+       fill="")+
+  geom_text(size = 4.5,vjust=-0.9)+
+  scale_y_continuous(limits = c(0, 50))+
+  scale_fill_fivethirtyeight()+
+  theme_wsj()+
+  theme(legend.position="bottom")
+
+ggplot(dt[,.(interventi=.N),by=Gruppo],
+       aes(y=interventi/dt[,.N],x=Gruppo,fill=Gruppo,
+           label=paste0(interventi,"/",dt[,.N])))+
+  geom_col()+
+  labs(title="Interventi (%)", x="Esperienza", y="% Interventi",
+       fill="")+
+  geom_text(size = 4.5,vjust=-0.9)+
+  scale_y_continuous(limits = c(0, 1),labels = scales::percent)+
+  scale_fill_fivethirtyeight()+
+  theme_wsj()+
+  theme(legend.position="bottom")
+```
+
+```{r plot_tempo.anestesia, warning=FALSE, echo=FALSE, opts.label='myfigures', fig.cap="Tempo necessario per l'anestesia"}
+ggplot(data=dt,
+       aes(x = Gruppo,y=tempo.anestesia,fill=Gruppo))+
+  geom_boxplot(colour=NA)+
+  geom_boxplot(show.legend = F)+
+  labs(title="Tempo Anestesia", x="", y="Tempo (min)", fill="")+
+  stat_summary(fun.y=mean, colour="darkred", geom="point",
+               shape=18, size=3,show.legend = FALSE) +
+  stat_summary(fun.y=mean, geom="text", show.legend = FALSE,
+                 vjust=-0.7, aes( label=round(..y.., digits=1)))+
+  scale_y_continuous()+
+  scale_fill_fivethirtyeight()+
+  theme_wsj()+
+  theme(legend.position="bottom")
+```
+  
+  
+```{r plot_tempo.anestesia-chir, warning=FALSE, echo=FALSE, opts.label='myfigures', fig.cap="Tempo tra l'anestesia e l'intervento"}
+ggplot(data=dt,
+       aes(x = Gruppo,y=tempo.tra.anest.e.chir,fill=Gruppo))+
+  geom_boxplot(colour=NA)+
+  geom_boxplot(show.legend = F)+
+  labs(title="Tempo tra anestesia e \nchirurgia (minuti)", x="", 
+       y="Tempo (min)", fill="")+
+  stat_summary(fun.y=mean, colour="darkred", geom="point",
+               shape=18, size=3,show.legend = FALSE) +
+  stat_summary(fun.y=mean, geom="text", show.legend = FALSE,
+                 vjust=-0.7, aes( label=round(..y.., digits=1)))+
+  scale_y_continuous()+
+  scale_fill_fivethirtyeight()+
+  theme_wsj()+
+  theme(legend.position="bottom")
+```  
+  
+```{r plot_supplemento, warning=FALSE, echo=FALSE, opts.label='myfigures', fig.cap="Casi di necessità di anestesia supplementare"}
+ggplot(dt[supplemento>0,.(necessita.suppl=.N),by=Gruppo][dt[,.(totale=.N),by=Gruppo],
+                                                         on="Gruppo"],
+       aes(y=necessita.suppl,x=Gruppo,fill=Gruppo,label=necessita.suppl))+
+  geom_col()+
+  labs(title="Necessità di supplemento \n(casi)", x="Esperienza", y="Necessità Dose Supplementare",
+       fill="")+
+  geom_text(size = 4.5,vjust=-0.9)+
+  scale_y_continuous(limits = c(0, 25))+
+  scale_fill_fivethirtyeight()+
+  theme_wsj()+
+  theme(legend.position="bottom")
+
+ggplot(dt[supplemento>0,.(necessita.suppl=.N),by=Gruppo][dt[,.(totale=.N),by=Gruppo],
+                                                         on="Gruppo"],
+       aes(y=necessita.suppl/totale,x=Gruppo,fill=Gruppo,label=paste0(necessita.suppl,
+                                                                      "/",totale)))+
+  geom_col()+
+  labs(title="Necessità di supplemento %", x="Esperienza", y="Necessità Dose Supplementare",
+       fill="")+
+  geom_text(size = 4.5,vjust=-0.9)+
+  scale_y_continuous(limits = c(0, 1),labels = scales::percent)+
+  scale_fill_fivethirtyeight()+
+  theme_wsj()+
+  theme(legend.position="bottom")
+```
+
+  
+  
+```{r plot_dose.supplemento, warning=FALSE, echo=FALSE, opts.label='myfigures', fig.cap="Dose anestesia supplementare necessaria"}
+ggplot(data=dt,
+       aes(x = Gruppo,y=supplemento,fill=Gruppo))+
+  geom_boxplot(colour=NA)+
+  geom_boxplot(show.legend = F)+
+  labs(title="Dose supplementare (mg)", x="", y="Dose Supplementare", fill="")+
+  stat_summary(fun.y=mean, colour="darkred", geom="point",
+               shape=18, size=3,show.legend = FALSE) +
+  stat_summary(fun.y=mean, geom="text", show.legend = FALSE,
+               vjust=-0.7, aes( label=round(..y.., digits=1)))+
+  scale_y_continuous()+
+  scale_fill_fivethirtyeight()+
+  theme_wsj()+
+  theme(legend.position="bottom")
+
+ggplot(data=dt,
+       aes(x = Gruppo,y=intra.cute,fill=Gruppo))+
+  geom_boxplot(colour=NA)+
+  geom_boxplot(show.legend = F)+
+  labs(title="Dose supplementare \n intra cute", x="",
+       y="Dose Supplementare intra cute", fill="")+
+  stat_summary(fun.y=mean, colour="darkred", geom="point",
+               shape=18, size=3,show.legend = FALSE) +
+  stat_summary(fun.y=mean, geom="text", show.legend = FALSE,
+               vjust=-0.7, aes( label=round(..y.., digits=1)))+
+  scale_y_continuous()+
+  scale_fill_fivethirtyeight()+
+  theme_wsj()+
+  theme(legend.position="bottom")
+
+ggplot(data=dt,
+       aes(x = Gruppo,y=perivascolare,fill=Gruppo))+
+  geom_boxplot(colour=NA)+
+  geom_boxplot(show.legend = F)+
+  labs(title="Dose supplementare \n perivascolare", x="",
+       y="Dose Supplementare perivascolare", fill="")+
+  stat_summary(fun.y=mean, colour="darkred", geom="point",
+               shape=18, size=3,show.legend = FALSE) +
+  stat_summary(fun.y=mean, geom="text", show.legend = FALSE,
+               vjust=-0.7, aes( label=round(..y.., digits=1)))+
+  scale_y_continuous()+
+  scale_fill_fivethirtyeight()+
+  theme_wsj()+
+  theme(legend.position="bottom")
+```
+  
+```{r plot_complicanze.esp, warning=FALSE, echo=FALSE, opts.label='myfigures', fig.cap="Complicanze osservate - Esperienza"}
+ggplot(dt[complicanze=="si",.(complicanze=.N),by=Gruppo][dt[,.(totale=.N),by=Gruppo],
+                                                         on="Gruppo"],
+       aes(y=complicanze,x=Gruppo,fill=Gruppo,label=complicanze))+
+  geom_col()+
+  labs(title="Complicanze", x="Esperienza", y="Complicanze",
+       fill="")+
+  geom_text(size = 4.5,vjust=-0.9)+
+  scale_y_continuous(limits = c(0, 25))+
+  scale_fill_fivethirtyeight()+
+  theme_wsj()+
+  theme(legend.position="bottom")
+
+ggplot(dt[complicanze=="si",.(complicanze=.N),by=Gruppo][dt[,.(totale=.N),
+                                                            by=Gruppo],on="Gruppo"],
+       aes(y=complicanze/totale,x=Gruppo,fill=Gruppo,label=paste0(complicanze,"/",totale)))+
+  geom_col()+
+  labs(title="Complicanze %", x="Esperienza", y="Complicanze",
+       fill="")+
+  geom_text(size = 4.5,vjust=-0.9)+
+  scale_y_continuous(limits = c(0, 1),labels = scales::percent)+
+  scale_fill_fivethirtyeight()+
+  theme_wsj()+
+  theme(legend.position="bottom")
+```
+  
+```{r tab.desc.c, warning=FALSE, echo=FALSE, results='asis'}
+whole <- summary_table(dt, my_summary_c)
+grouped <- summary_table(dplyr::group_by(dt, tipo.blocco.s), my_summary_c)
+print(cbind(whole,grouped))
+```  
+  
+```{r plot_complicanze.tipoB, warning=FALSE, echo=FALSE, opts.label='myfigures', fig.cap="Complicanze osservate - Tipo blocco"}
+ggplot(dt[complicanze=="si",.(complicanze=.N),by=tipo.blocco.s][dt[,.(totale=.N),by=tipo.blocco.s],
+                                                              on="tipo.blocco.s"],
+       aes(y=complicanze/totale,x=tipo.blocco.s,fill=tipo.blocco.s,
+           label=paste0(complicanze,"/",totale)))+
+  geom_col()+
+  labs(title="Complicanze %", x="Tipo Blocco", y="Complicanze",
+       fill="")+
+  geom_text(size = 4.5,vjust=-0.9)+
+  scale_y_continuous(limits = c(0, 1),labels = scales::percent)+
+  scale_fill_fivethirtyeight()+
+  theme_wsj()+
+  theme(legend.position="bottom")
+```
+
+Purtroppo il numero degli interventi non è sufficiente ad ottenere una stima precisa dei parametri d'interesse, la statistica inferenziale è quindi muta ($\chi2$ e Mann-Whitney non significativi per differenze di frequenza o distribuzione).
+
+  
+Utilizzando un modello di regressione logistica, si è stimata l'influenza del tempo tra l'anestesia e l'intervento chiurgico sullo sviluppo di complicanze, controllando per la profondità del blocco e per l'esperienza dell'anestesista. I parametri stimati non risultano statisticamente significativi, ma la stima delle probabilità ottenuta è comunque suggestiva.  
+I coefficienti di regressione ottenuti nei modelli rappresentano la variazione del logit ($logit(p(x)) = log (\frac{p(x)}{1 - p(x)}) = log(OR) = \alpha+\beta x$) per ogni cambiamento unitario del predittore. Visto che il logit non è intuitivo, di solito si valuta l'effetto del predittore sull'esponenziale del coefficiente di regressione - l'odds ratio.  
+
+```{r plot_prob, warning=FALSE, echo=FALSE, opts.label='myfigures', fig.cap="Previsione Complicanze - Tipo blocco e tempo tra anestesia e chirurgia"}
+fm<-glm(complicanze=="si" ~ tempo.tra.anest.e.chir + tipo.blocco.s + Gruppo, data=dt, family=binomial())
+library(sjPlot)
+plot_model(fm,type = "eff", ci.lvl = NA, 
+           terms = c("tempo.tra.anest.e.chir","tipo.blocco.s"),
+           title = "Previsione della probabilità di sviluppare complicanze",axis.title = c("Tempo tra anestesia e chirurgia (minuti)","Probabilità di complicanze"),legend.title = "Tipologia di blocco",
+           colors = c("#FF2700","#008FD5"))
+```
+  
+```{r coef-fm, warning=FALSE, echo=FALSE, message=FALSE, results='asis'}
+library(broom)
+tb<-data.table(tidy(fm,conf.int = T))
+eq<-paste0("$logit(Complicanze) = ", round(tb$estimate[1],2)," + ",
+           round(tb$estimate[2],4)," * Tempo tra Anest e Chir (min) + ",
+           round(tb$estimate[3],4)," * Blocco profondo +",
+           round(tb$estimate[4],4)," * Categoria B +",
+           round(tb$estimate[5],4)," * Categoria C$")
+knitr::kable(tb[,.(" "= c("Intercetta","Tempo tra Anest e Chir (min)", 
+                          "Blocco profondo",
+                          "Categoria B",
+                          "Categoria C"), 
+                   "OR"=exp(estimate),"OR.lower"=exp(conf.low),
+                   "OR.higher"=exp(conf.high),
+                   "$\\beta$"=estimate,
+                   "$\\beta_{lower}$"=conf.low,
+                   "$\\beta_{upper}$"=conf.high,
+                   "P-Value"=frmtp(p.value))][-1],digits = 4 
+             )
+```
+  
+`r eq`    
+  
+```{r plot_prob_supp, warning=FALSE, echo=FALSE, opts.label='myfigures', fig.cap="Previsione Supplemento - Tipo blocco e tempo tra anestesia e chirurgia"}
+fm_s<-glm(supplemento>0 ~ tempo.tra.anest.e.chir + tipo.blocco.s + Gruppo, data=dt, family=binomial())
+library(sjPlot)
+plot_model(fm_s,type = "eff", ci.lvl = NA,
+           terms = c("tempo.tra.anest.e.chir","tipo.blocco.s"),
+           title = "Previsione della necessità di anestesia supplementare",axis.title = c("Tempo tra anestesia e chirurgia (minuti)","Probabilità di supplemento"),legend.title = "Tipologia di blocco",
+           colors = c("#FF2700","#008FD5"))
+```
+  
+```{r coef-fm_s, warning=FALSE, echo=FALSE, message=FALSE, results='asis'}
+tb<-data.table(tidy(fm_s,conf.int = T))
+eq<-paste0("$logit(Necessità supplemento) = ", round(tb$estimate[1],2)," + ",
+           round(tb$estimate[2],4)," * Tempo tra Anest e Chir (min) + ",
+           round(tb$estimate[3],4)," * Blocco profondo +",
+           round(tb$estimate[4],4)," * Categoria B +",
+           round(tb$estimate[5],4)," * Categoria C$")
+knitr::kable(tb[,.(" "= c("Intercetta","Tempo tra Anest e Chir (min)", 
+                          "Blocco profondo",
+                          "Categoria B",
+                          "Categoria C"), 
+                   "OR"=exp(estimate),"OR.lower"=exp(conf.low),
+                   "OR.higher"=exp(conf.high),
+                   "$\\beta$"=estimate,
+                   "$\\beta_{lower}$"=conf.low,
+                   "$\\beta_{upper}$"=conf.high,
+                   "P-Value"=frmtp(p.value))][-1],digits = 4 
+             )
+```
+
+`r eq`
