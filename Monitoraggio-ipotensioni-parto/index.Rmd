@@ -158,13 +158,13 @@ print(grouped_map,cnames = c(paste0("MAP non in target (n = ",
   
 ```{r plot_ph-map, warning=FALSE, echo=FALSE, opts.label='myfigures', fig.cap="Distribuzione dei pH misurati - il rombo indica la media"}
 ggplot(data=dt, aes(x=Ipotensione,fill=Ipotensione,pH))+
-  geom_boxplot(colour=NA)+
+  geom_boxplot(show.legend = F,colour=NA)+
   geom_boxplot(show.legend = F)+
   labs(title="pH", x="Ipotensione", y="pH", fill="")+
-  stat_summary(fun.y=mean, colour="darkred", geom="point",
+  stat_summary(fun.y=mean, colour="black", geom="point",
                shape=18, size=3,show.legend = FALSE) +
-  stat_summary(fun.y=mean, geom="text", show.legend = FALSE,
-                 vjust=-0.4, aes( label=round(..y.., digits=2)))+
+  # stat_summary(fun.y=mean, geom="text", show.legend = FALSE,
+  #                vjust=-0.4, aes( label=round(..y.., digits=2)),size = 5)+
   scale_y_continuous()+
   scale_fill_fivethirtyeight()+
   theme_economist()+
@@ -177,10 +177,10 @@ ggplot(data=dt, aes(x=Ipotensione,fill=Ipotensione,Lattati))+
   geom_boxplot(show.legend = F)+
   labs(title="Lattati", x="Ipotensione", y="Lattati",
        fill="")+
-  stat_summary(fun.y=mean, colour="darkred", geom="point",
+  stat_summary(fun.y=mean, colour="black", geom="point",
                shape=18, size=3,show.legend = FALSE) +
-  stat_summary(fun.y=mean, geom="text", show.legend = FALSE,
-                 vjust=-0.4, aes( label=round(..y.., digits=2)))+
+  # stat_summary(fun.y=mean, geom="text", show.legend = FALSE,
+  #                vjust=-0.4, aes( label=round(..y.., digits=2)))+
   scale_y_continuous()+
   scale_fill_fivethirtyeight()+
   theme_economist()+
@@ -207,10 +207,10 @@ ggplot(data=dt, aes(x=Ipoperfusione,fill=Ipoperfusione,pH))+
   geom_boxplot(colour=NA)+
   geom_boxplot(show.legend = F)+
   labs(title="pH", x="Ipoperfusione", y="pH", fill="")+
-  stat_summary(fun.y=mean, colour="darkred", geom="point",
+  stat_summary(fun.y=mean, colour="black", geom="point",
                shape=18, size=3,show.legend = FALSE) +
-  stat_summary(fun.y=mean, geom="text", show.legend = FALSE,
-                 vjust=-0.4, aes( label=round(..y.., digits=2)))+
+  # stat_summary(fun.y=mean, geom="text", show.legend = FALSE,
+  #                vjust=-0.4, aes( label=round(..y.., digits=2)))+
   scale_y_continuous()+
   scale_fill_fivethirtyeight()+
   theme_economist()+
@@ -223,10 +223,10 @@ ggplot(data=dt, aes(x=Ipoperfusione,fill=Ipoperfusione,Lattati))+
   geom_boxplot(show.legend = F)+
   labs(title="Lattati", x="Ipoperfusione", y="Lattati",
        fill="")+
-  stat_summary(fun.y=mean, colour="darkred", geom="point",
+  stat_summary(fun.y=mean, colour="black", geom="point",
                shape=18, size=3,show.legend = FALSE) +
-  stat_summary(fun.y=mean, geom="text", show.legend = FALSE,
-                 vjust=-0.4, aes( label=round(..y.., digits=2)))+
+  # stat_summary(fun.y=mean, geom="text", show.legend = FALSE,
+  #                vjust=-0.4, aes( label=round(..y.., digits=2)))+
   scale_y_continuous()+
   scale_fill_fivethirtyeight()+
   theme_economist()+
