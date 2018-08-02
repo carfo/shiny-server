@@ -1,5 +1,5 @@
 ---
-title: "Delirium postoperatorio"
+title: "Delirium"
 author: "Fabio Carfagna [fabio.carfagna@med.uniupo.it]"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 output: html_document
@@ -103,7 +103,7 @@ dt[,vasoprex:=factor(vasoprex.new.g.kg.min,
                                 "Dopa >5 Epi/Norepi >0.1 (3)"))]
 my_summary <-
   with(dt,
-       list("EtÃ  (anni)" = tab_summary(Eta..anni),
+       list("Età (anni)" = tab_summary(Eta..anni),
             "Sesso" = tab_summary(Sesso),
             "Peso (kg)" = tab_summary(Peso..kg.),
             "BMI" = tab_summary(Indice.Massa.Corporea),
@@ -134,8 +134,8 @@ p_vals_freq<-
   lapply(frmtp) %>%
   do.call(c, .)
 # base<-with(dt,
-#   list("Kurtosis etÃ "=anscombe.test(Eta..anni),
-#        "Skewness etÃ "=agostino.test(Eta..anni),
+#   list("Kurtosis età"=anscombe.test(Eta..anni),
+#        "Skewness età"=agostino.test(Eta..anni),
 #        "Kurtosis peso"=anscombe.test(Peso..kg.),
 #        "Skewness peso"=agostino.test(Peso..kg.),
 #        "Kurtosis BMI"=anscombe.test(Indice.Massa.Corporea),
@@ -154,8 +154,8 @@ p_vals_freq<-
 # )
 # 
 # base_plot<-with(dt,
-#   list("Histogram etÃ "=hist(Eta..anni),
-#        "QQPlot etÃ "=qqnorm(Eta..anni),
+#   list("Histogram età"=hist(Eta..anni),
+#        "QQPlot età"=qqnorm(Eta..anni),
 #        "Histogram peso"=hist(Peso..kg.),
 #        "QQPlot peso"=qqnorm(Peso..kg.),
 #        "Histogram BMI"=hist(Indice.Massa.Corporea),
@@ -192,11 +192,11 @@ p_vals_dist<-
 ```{r commenti-euroscore, message=FALSE, echo=FALSE}
 # By selecting  "Logistic euroSCORE" - euroSCORE predicted mortality is calculated as follows (manuscript in preparation):
 # 
-#    Predicted mortality =   e (Î²0 + Ã¥bi Xi) / 1+ e (Î²0 + Ã¥bi Xi)
+#    Predicted mortality =   e (β0 + åbi Xi) / 1+ e (β0 + åbi Xi)
 # 
- # Î²o is the constant of the logistic regression equation = -4.789594
+ # βo is the constant of the logistic regression equation = -4.789594
  # 
- # Î²i is the coefficient of the variable Xi in the logistic regression equation provided in the table below.
+ # βi is the coefficient of the variable Xi in the logistic regression equation provided in the table below.
  # 
  # Xi = 1 if a categorical risk factor is present and 0 if it is absent
 # Osservazioni
@@ -343,7 +343,7 @@ p_vals_dist<-
 # 	1.462009
 ```
 ##Descrittive ed inferenza
-Le frequenze a due categorie sono state analizzate con test $\chi2$, le frequenze a piÃ¹ categorie con il test non parametrico di Kruskal-Wallis, le differenze di distribuzione sono state valutate con il test di Mann-Whitney.  
+Le frequenze a due categorie sono state analizzate con test $\chi2$, le frequenze a più categorie con il test non parametrico di Kruskal-Wallis, le differenze di distribuzione sono state valutate con il test di Mann-Whitney.  
 
 ```{r tab.desc, warning=FALSE, echo=FALSE, results='asis'}
 whole <- summary_table(dt, my_summary)
@@ -376,15 +376,15 @@ ggpairs(dt[,.(EuroSCORE.II...LOGISTICO,BIS.40..min.,SR.20..min.,SR.0..min.,
 ```
   
   
-```{r plot_eta, warning=FALSE, echo=FALSE, opts.label='myfigures', fig.cap="Distribuzione EtÃ  - il punto rosso indica la media"}
+```{r plot_eta, warning=FALSE, echo=FALSE, opts.label='myfigures', fig.cap="Distribuzione Età - il punto rosso indica la media"}
 ggplot(data=dt, aes(x=Delirium,fill=Delirium,Eta..anni))+
   geom_boxplot(colour=NA, show.legend = F)+
   geom_boxplot(show.legend = F)+
-  labs(title="EtÃ ", x="Delirium", y="EtÃ  (anni)", fill="")+
+  labs(title="Età", x="Delirium", y="Età (anni)", fill="")+
   stat_summary(fun.y=mean, colour="darkred", geom="point",
                shape=18, size=3,show.legend = FALSE) +
   stat_summary(fun.y=mean, geom="text", show.legend = FALSE,
-                 vjust=-0.9, aes( label=round(..y.., digits=0)))+
+                 vjust=-0.9, aes(label=round(..y.., digits=0)))+
   scale_y_continuous()+
   scale_fill_pander()+
   theme_economist_white()+
@@ -526,15 +526,15 @@ fm_fasullo <- glm(Delirium=="si"  ~ Eta..anni  +
                   data = dt, family=binomial)
 ```
   
-I modelli di regressione logistica identificati utilizzano come predittori l'etÃ , l'EuroSCORE, il tempo trascorso con BIS<40, il tempo trascorso con SR>0, la necessitÃ  di trasfusioni intraoperatorie e l'utilizzo di vasopressori.  
-I coefficienti di regressione ottenuti nei modelli rappresentano la variazione del logit ($logit(p(x)) = log (\frac{p(x)}{1 â p(x)}) = log(OR) = \alpha+\beta x$) per ogni cambiamento unitario del predittore. Visto che il logit non Ã¨ intuitivo, di solito si valuta l'effetto del predittore sull'esponenziale del coefficiente di regressione - l'odds ratio.  
+I modelli di regressione logistica identificati utilizzano come predittori l'età, l'EuroSCORE, il tempo trascorso con BIS<40, il tempo trascorso con SR>0, la necessità di trasfusioni intraoperatorie e l'utilizzo di vasopressori.  
+I coefficienti di regressione ottenuti nei modelli rappresentano la variazione del logit ($logit(p(x)) = log (\frac{p(x)}{1 − p(x)}) = log(OR) = \alpha+\beta x$) per ogni cambiamento unitario del predittore. Visto che il logit non è intuitivo, di solito si valuta l'effetto del predittore sull'esponenziale del coefficiente di regressione - l'odds ratio.  
 
 ```{r coef-p1, warning=FALSE, echo=FALSE, message=FALSE, results='asis'}
 tb<-data.table(tidy(fm2_l,conf.int = T))
 eq<-paste0("$logit(Delirium) = ", round(tb$estimate[1],2)," + ",
-           round(tb$estimate[2],4)," * EtÃ  + ",
+           round(tb$estimate[2],4)," * Età + ",
            round(tb$estimate[3],4)," * EuroSCORE$")
-knitr::kable(tb[,.(" "= c("Intercetta","EtÃ  (anni)","EuroSCORE II"), 
+knitr::kable(tb[,.(" "= c("Intercetta","Età (anni)","EuroSCORE II"), 
                    "OR"=exp(estimate),"OR.lower"=exp(conf.low),
                    "OR.higher"=exp(conf.high),
                    "$\\beta$"=estimate,
@@ -549,10 +549,10 @@ knitr::kable(tb[,.(" "= c("Intercetta","EtÃ  (anni)","EuroSCORE II"),
 ```{r coef-p2, warning=FALSE, echo=FALSE, message=FALSE, results='asis'}
 tb<-data.table(tidy(fm3_l,conf.int = T))
 eq<-paste0("$logit(Delirium) = ", round(tb$estimate[1],2)," + ",
-           round(tb$estimate[2],4)," * EtÃ  + ",
+           round(tb$estimate[2],4)," * Età + ",
            round(tb$estimate[3],4)," * EuroSCORE + ",
            round(tb$estimate[4],4)," * Tempo BIS<40$")
-knitr::kable(tb[,.(" "= c("Intercetta","EtÃ  (anni)","EuroSCORE II", 
+knitr::kable(tb[,.(" "= c("Intercetta","Età (anni)","EuroSCORE II", 
                           "Tempo BIS<40 (min)"), 
                    "OR"=exp(estimate),"OR.lower"=exp(conf.low),
                    "OR.higher"=exp(conf.high),
@@ -568,11 +568,11 @@ knitr::kable(tb[,.(" "= c("Intercetta","EtÃ  (anni)","EuroSCORE II",
 ```{r coef-p3, warning=FALSE, echo=FALSE, message=FALSE, results='asis'}
 tb<-data.table(tidy(fm4_l,conf.int = T))
 eq<-paste0("$logit(Delirium) = ", round(tb$estimate[1],2)," + ",
-           round(tb$estimate[2],4)," * EtÃ  + ",
+           round(tb$estimate[2],4)," * Età + ",
            round(tb$estimate[3],4)," * EuroSCORE + ",
            round(tb$estimate[4],4)," * Tempo BIS<40 +",
            round(tb$estimate[5],4)," * Tempo SR>0$")
-knitr::kable(tb[,.(" "= c("Intercetta","EtÃ  (anni)","EuroSCORE II", 
+knitr::kable(tb[,.(" "= c("Intercetta","Età (anni)","EuroSCORE II", 
                           "Tempo BIS<40 (min)","Tempo SR>0 (min)"), 
                    "OR"=exp(estimate),"OR.lower"=exp(conf.low),
                    "OR.higher"=exp(conf.high),
@@ -588,11 +588,11 @@ knitr::kable(tb[,.(" "= c("Intercetta","EtÃ  (anni)","EuroSCORE II",
 ```{r coef-p4, warning=FALSE, echo=FALSE, message=FALSE, results='asis'}
 tb<-data.table(tidy(fm5_l,conf.int = T))
 eq<-paste0("$logit(Delirium) = ", round(tb$estimate[1],2)," + ",
-           round(tb$estimate[2],4)," * EtÃ  + ",
+           round(tb$estimate[2],4)," * Età + ",
            round(tb$estimate[3],4)," * EuroSCORE + ",
            round(tb$estimate[4],4)," * Tempo BIS<40 +",
            round(tb$estimate[5],4)," * Transfusioni intraoperatorie$")
-knitr::kable(tb[,.(" "= c("Intercetta","EtÃ  (anni)","EuroSCORE II", 
+knitr::kable(tb[,.(" "= c("Intercetta","Età (anni)","EuroSCORE II", 
                           "Tempo BIS<40 (min)",
                           "Transfusioni intraoperatorie"), 
                    "OR"=exp(estimate),"OR.lower"=exp(conf.low),
@@ -609,13 +609,13 @@ knitr::kable(tb[,.(" "= c("Intercetta","EtÃ  (anni)","EuroSCORE II",
 ```{r coef-p6, warning=FALSE, echo=FALSE, message=FALSE, results='asis'}
 tb<-data.table(tidy(fm6_l,conf.int = T))
 eq<-paste0("$logit(Delirium) = ", round(tb$estimate[1],2)," + ",
-           round(tb$estimate[2],4)," * EtÃ  + ",
+           round(tb$estimate[2],4)," * Età + ",
            round(tb$estimate[3],4)," * EuroSCORE + ",
            round(tb$estimate[4],4)," * Tempo BIS<40 +",
            round(tb$estimate[5],4)," * vasoprexDopamina <=5 +",
            round(tb$estimate[6],4)," * vasoprexDopa >5 Epi/Norepi <=0.1 +",
            round(tb$estimate[7],4)," * vasoprexDopa >5 Epi/Norepi >0.1$")
-knitr::kable(tb[,.(" "= c("Intercetta","EtÃ  (anni)","EuroSCORE II", 
+knitr::kable(tb[,.(" "= c("Intercetta","Età (anni)","EuroSCORE II", 
                           "Tempo BIS<40 (min)",
                           "vasoprexDopamina <=5 o Dobutamina",
                           "vasoprexDopa >5 Epi/Norepi <=0.1 (2)",
@@ -636,10 +636,10 @@ I coefficienti del modello finale, determinato tramite likelihood ratio tests tr
 ```{r coef-p, warning=FALSE, echo=FALSE, message=FALSE, results='asis'}
 tb<-data.table(tidy(fm3_l,conf.int = T))
 eq<-paste0("$logit(Delirium) = ", round(tb$estimate[1],2)," + ",
-           round(tb$estimate[2],4)," * EtÃ  + ",
+           round(tb$estimate[2],4)," * Età + ",
            round(tb$estimate[3],4)," * EuroSCORE + ",
            round(tb$estimate[4],4)," * Tempo BIS<40$")
-knitr::kable(tb[,.(" "= c("Intercetta","EtÃ  (anni)","EuroSCORE II", 
+knitr::kable(tb[,.(" "= c("Intercetta","Età (anni)","EuroSCORE II", 
                           "Tempo BIS<40 (min)"), 
                    "OR"=exp(estimate),"OR.lower"=exp(conf.low),
                    "OR.higher"=exp(conf.high),
@@ -658,39 +658,43 @@ plotROC(dt[,as.numeric(Delirium=="si")], predict(fm3_l,
   
 `r eq`    
   
-E' possibile calcolare anche la probabilitÃ  di sviluppare l'evento come  
+E' possibile calcolare anche la probabilità di sviluppare l'evento come  
 
 $p(x)=\frac{e^{\alpha+\beta}}{1+e^{\alpha+\beta}}$
   
-Vengono di seguito presentate le probabilitÃ  predette di sviluppare delirium post intervento in funzione del tempo passato con BIS <40, in tre classi di etÃ , e in funzione dell'EuroSCORE, sempre in tre classi di etÃ .  
+Vengono di seguito presentate le probabilità predette di sviluppare delirium post intervento in funzione del tempo passato con BIS <40, in tre classi di età, e in funzione dell'EuroSCORE, sempre in tre classi di età.  
 
-```{r plot_log-BIS, message=FALSE, warning=FALSE, echo=FALSE, opts.label='myfigures', fig.cap="ProbabilitÃ  di sviluppare delirium post-operatorio - Tempo BIS<40"}
+```{r plot_log-BIS, message=FALSE, warning=FALSE, echo=FALSE, opts.label='myfigures', fig.cap="Probabilità di sviluppare delirium post-operatorio - Tempo BIS<40"}
 plot_model(fm3_l,type="eff",terms = c("BIS.40..min.",
                                       "Eta..anni [40,50,60,70,80]"),
-           title = "ProbabilitÃ  predette di svillupare delirium",
-           axis.title = c("Tempo BIS<40 (min)","ProbabilitÃ "),
-           legend.title = "Classi d'etÃ ", ci.lvl = NA)+
+           title = "Probabilità predette di svillupare delirium",
+           axis.title = c("Tempo BIS<40 (min)","Probabilità"),
+           legend.title = "Classi d'età", ci.lvl = NA)+
   scale_colour_discrete()+
-  theme(legend.position="bottom")
+  labs(x="Tempo con BIS<40 (minuti)",y="")+
+  theme_economist_white()+
+  theme(legend.position="bottom", axis.title  =element_text(colour="black", size=12))
 ```
   
-```{r plot_log-escore, message=FALSE, warning=FALSE, echo=FALSE, opts.label='myfigures', fig.cap="ProbabilitÃ  di sviluppare delirium post-operatorio - EuroSCORE II"}
+```{r plot_log-escore, message=FALSE, warning=FALSE, echo=FALSE, opts.label='myfigures', fig.cap="Probabilità di sviluppare delirium post-operatorio - EuroSCORE II"}
 plot_model(fm3_l,type="eff",terms = c("EuroSCORE.II...LOGISTICO",
                                       "Eta..anni [40,50,60,70,80]"),
-           title = "ProbabilitÃ  predette di svillupare delirium",
-           axis.title = c("EuroSCORE II (logistico)","ProbabilitÃ "),
-           legend.title = "Classi d'etÃ ", ci.lvl = NA)+
+           title = "Probabilità predette di svillupare delirium",
+           axis.title = c("EuroSCORE II (logistico)","Probabilità"),
+           legend.title = "Classi d'età", ci.lvl = NA)+
   scale_colour_discrete()+
-  theme(legend.position="bottom")
+  labs(x="Euroscore II",y="")+
+  theme_economist_white()+
+  theme(legend.position="bottom", axis.title  =element_text(colour="black", size=12))
 ```
 ###SR
 ```{r coef-p_sr, warning=FALSE, echo=FALSE, message=FALSE, results='asis'}
 tb<-data.table(tidy(fm3_l_sr,conf.int = T))
 eq<-paste0("$logit(Delirium) = ", round(tb$estimate[1],2)," + ",
-           round(tb$estimate[2],4)," * EtÃ  + ",
+           round(tb$estimate[2],4)," * Età + ",
            round(tb$estimate[3],4)," * EuroSCORE + ",
            round(tb$estimate[4],4)," * Tempo SR>0$")
-knitr::kable(tb[,.(" "= c("Intercetta","EtÃ  (anni)","EuroSCORE II", 
+knitr::kable(tb[,.(" "= c("Intercetta","Età (anni)","EuroSCORE II", 
                           "Tempo SR>0 (min)"), 
                    "OR"=exp(estimate),"OR.lower"=exp(conf.low),
                    "OR.higher"=exp(conf.high),
@@ -703,23 +707,25 @@ knitr::kable(tb[,.(" "= c("Intercetta","EtÃ  (anni)","EuroSCORE II",
 
 `r eq`  
 
-```{r plot_log-sr0, message=FALSE, warning=FALSE, echo=FALSE, opts.label='myfigures', fig.cap="ProbabilitÃ  di sviluppare delirium post-operatorio - Tempo con SR > 0"}
+```{r plot_log-sr0, message=FALSE, warning=FALSE, echo=FALSE, opts.label='myfigures', fig.cap="Probabilità di sviluppare delirium post-operatorio - Tempo con SR > 0"}
 plot_model(fm3_l_sr,type="eff",terms = c("SR.0..min.",
                                       "Eta..anni [40,50,60,70,80]"),
-           title = "ProbabilitÃ  predette di svillupare delirium",
-           axis.title = c("Tempo con SR>0 (min)","ProbabilitÃ "),
-           legend.title = "Classi d'etÃ ", ci.lvl = NA)+
+           title = "Probabilità predette di svillupare delirium",
+           axis.title = c("Tempo con SR>0 (min)","Probabilità"),
+           legend.title = "Classi d'età", ci.lvl = NA)+
   scale_colour_discrete()+
-  theme(legend.position="bottom")
+  labs(x="Tempo con SR>0 (minuti)",y="")+
+  theme_economist_white()+
+  theme(legend.position="bottom", axis.title  =element_text(colour="black", size=12))
 ```
 
 ###BIS < 20
 ```{r coef-bis20, warning=FALSE, echo=FALSE, message=FALSE, results='asis'}
 tb<-data.table(tidy(fm_fasullo,conf.int = T))
 eq<-paste0("$logit(Delirium) = ", round(tb$estimate[1],2)," + ",
-           round(tb$estimate[2],4)," * EtÃ  + ",
+           round(tb$estimate[2],4)," * Età + ",
            round(tb$estimate[3],4)," * Tempo BIS<20$")
-knitr::kable(tb[,.(" "= c("Intercetta","EtÃ  (anni)", 
+knitr::kable(tb[,.(" "= c("Intercetta","Età (anni)", 
                           "Tempo BIS<20 (min)"), 
                    "OR"=exp(estimate),"OR.lower"=exp(conf.low),
                    "OR.higher"=exp(conf.high),
@@ -732,12 +738,14 @@ knitr::kable(tb[,.(" "= c("Intercetta","EtÃ  (anni)",
   
 `r eq`  
 
-```{r plot_log-bis20, message=FALSE, warning=FALSE, echo=FALSE, opts.label='myfigures', fig.cap="ProbabilitÃ  di sviluppare delirium post-operatorio - Tempo con bis < 20"}
+```{r plot_log-bis20, message=FALSE, warning=FALSE, echo=FALSE, opts.label='myfigures', fig.cap="Probabilità di sviluppare delirium post-operatorio - Tempo con bis < 20"}
 plot_model(fm_fasullo,type="eff",terms = c("BIS..20",
                                       "Eta..anni [40,50,60,70,80]"),
-           title = "ProbabilitÃ  predette di svillupare delirium",
-           axis.title = c("Tempo con BIS<20 (min)","ProbabilitÃ "),
-           legend.title = "Classi d'etÃ ")+
+           title = "Probabilità predette di svillupare delirium",
+           axis.title = c("Tempo con BIS<20 (min)","Probabilità"),
+           legend.title = "Classi d'età")+
   scale_colour_discrete()+
-  theme(legend.position="bottom")
+  labs(x="Tempo con BIS<20 (minuti)",y="")+
+  theme_economist_white()+
+  theme(legend.position="bottom", axis.title  =element_text(colour="black", size=12))
 ```
