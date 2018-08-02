@@ -34,7 +34,6 @@ setnames(dt,c("X","X.1","X.2","X.3","X.4","X.5","X.6","X.7","X.8","X.9","X.10","
            "Infiltrazione.mepi2"))
 dt[,Gruppo:=factor(Gruppo,levels=c(1,2,3),
                    labels = c("Categoria A", "Categoria B","Categoria C"))]
-
 dt[,BP:=as.numeric(BP.chiro)]
 dt[,BI:=as.numeric(BI.chiro)]
 dt[,BS:=sum(as.numeric(BS.mepi2),as.numeric(BS.mepi1),as.numeric(BS.chiro),as.numeric(BS.lido),na.rm=T),
@@ -176,12 +175,12 @@ ggplot(data=dt,
   theme(legend.position="bottom")
 ```  
   
-```{r plot_supplemento, warning=FALSE, echo=FALSE, opts.label='myfigures', fig.cap="Casi di necessit‡ di anestesia supplementare"}
+```{r plot_supplemento, warning=FALSE, echo=FALSE, opts.label='myfigures', fig.cap="Casi di necessit√† di anestesia supplementare"}
 ggplot(dt[supplemento>0,.(necessita.suppl=.N),by=Gruppo][dt[,.(totale=.N),by=Gruppo],
                                                          on="Gruppo"],
        aes(y=necessita.suppl,x=Gruppo,fill=Gruppo,label=necessita.suppl))+
   geom_col()+
-  labs(title="Necessit‡ di supplemento \n(casi)", x="Esperienza", y="Necessit‡ Dose Supplementare",
+  labs(title="Necessit√† di supplemento \n(casi)", x="Esperienza", y="Necessit√† Dose Supplementare",
        fill="")+
   geom_text(size = 4.5,vjust=-0.9)+
   scale_y_continuous(limits = c(0, 25))+
@@ -194,7 +193,7 @@ ggplot(dt[supplemento>0,.(necessita.suppl=.N),by=Gruppo][dt[,.(totale=.N),by=Gru
        aes(y=necessita.suppl/totale,x=Gruppo,fill=Gruppo,label=paste0(necessita.suppl,
                                                                       "/",totale)))+
   geom_col()+
-  labs(title="Necessit‡ di supplemento %", x="Esperienza", y="Necessit‡ Dose Supplementare",
+  labs(title="Necessit√† di supplemento %", x="Esperienza", y="Necessit√† Dose Supplementare",
        fill="")+
   geom_text(size = 4.5,vjust=-0.9)+
   scale_y_continuous(limits = c(0, 1),labels = scales::percent)+
@@ -305,18 +304,18 @@ ggplot(dt[complicanze=="si",.(complicanze=.N),by=tipo.blocco.s][dt[,.(totale=.N)
   theme(legend.position="bottom")
 ```
 
-Purtroppo il numero degli interventi non Ë sufficiente ad ottenere una stima precisa dei parametri d'interesse, la statistica inferenziale Ë quindi muta ($\chi2$ e Mann-Whitney non significativi per differenze di frequenza o distribuzione).
+Purtroppo il numero degli interventi non √® sufficiente ad ottenere una stima precisa dei parametri d'interesse, la statistica inferenziale √® quindi muta ($\chi2$ e Mann-Whitney non significativi per differenze di frequenza o distribuzione).
 
   
-Utilizzando un modello di regressione logistica, si Ë stimata l'influenza del tempo tra l'anestesia e l'intervento chiurgico sullo sviluppo di complicanze, controllando per la profondit‡ del blocco e per l'esperienza dell'anestesista. I parametri stimati non risultano statisticamente significativi, ma la stima delle probabilit‡ ottenuta Ë comunque suggestiva.  
-I coefficienti di regressione ottenuti nei modelli rappresentano la variazione del logit ($logit(p(x)) = log (\frac{p(x)}{1 - p(x)}) = log(OR) = \alpha+\beta x$) per ogni cambiamento unitario del predittore. Visto che il logit non Ë intuitivo, di solito si valuta l'effetto del predittore sull'esponenziale del coefficiente di regressione - l'odds ratio.  
+Utilizzando un modello di regressione logistica, si √® stimata l'influenza del tempo tra l'anestesia e l'intervento chiurgico sullo sviluppo di complicanze, controllando per la profondit√† del blocco e per l'esperienza dell'anestesista. I parametri stimati non risultano statisticamente significativi, ma la stima delle probabilit√† ottenuta √® comunque suggestiva.  
+I coefficienti di regressione ottenuti nei modelli rappresentano la variazione del logit ($logit(p(x)) = log (\frac{p(x)}{1 - p(x)}) = log(OR) = \alpha+\beta x$) per ogni cambiamento unitario del predittore. Visto che il logit non √® intuitivo, di solito si valuta l'effetto del predittore sull'esponenziale del coefficiente di regressione - l'odds ratio.  
 
 ```{r plot_prob, warning=FALSE, echo=FALSE, opts.label='myfigures', fig.cap="Previsione Complicanze - Tipo blocco e tempo tra anestesia e chirurgia"}
 fm<-glm(complicanze=="si" ~ tempo.tra.anest.e.chir + tipo.blocco.s + Gruppo, data=dt, family=binomial())
 library(sjPlot)
 plot_model(fm,type = "eff", ci.lvl = NA, 
            terms = c("tempo.tra.anest.e.chir","tipo.blocco.s"),
-           title = "Probabilit‡ di \nsviluppare complicanze",axis.title = c("Tempo tra anestesia e chirurgia (minuti)","Probabilit‡ di complicanze minori"),legend.title = "Tipologia di blocco",
+           title = "Probabilit√† di \nsviluppare complicanze",axis.title = c("Tempo tra anestesia e chirurgia (minuti)","Probabilit√† di complicanze minori"),legend.title = "Tipologia di blocco",
            colors = c("#FF2700","#008FD5"))+
   scale_fill_fivethirtyeight()+
   labs(x="Tempo tra anestesia e chirurgia (minuti)",y="")+
@@ -352,7 +351,7 @@ fm_s<-glm(supplemento>0 ~ tempo.tra.anest.e.chir + tipo.blocco.s + Gruppo, data=
 library(sjPlot)
 plot_model(fm_s,type = "eff", ci.lvl = NA,
            terms = c("tempo.tra.anest.e.chir","tipo.blocco.s"),
-           title = "Necessit‡ di anestesia \nsupplementare",axis.title = c("Tempo tra anestesia e chirurgia (minuti)","Probabilit‡ di supplemento"),legend.title = "Tipologia di blocco",
+           title = "Necessit√† di anestesia \nsupplementare",axis.title = c("Tempo tra anestesia e chirurgia (minuti)","Probabilit√† di supplemento"),legend.title = "Tipologia di blocco",
            colors = c("#FF2700","#008FD5"))+
   scale_fill_fivethirtyeight()+
   labs(x="Tempo tra anestesia e chirurgia (minuti)",y="")+
@@ -362,7 +361,7 @@ plot_model(fm_s,type = "eff", ci.lvl = NA,
   
 ```{r coef-fm_s, warning=FALSE, echo=FALSE, message=FALSE, results='asis'}
 tb<-data.table(tidy(fm_s,conf.int = T))
-eq<-paste0("$logit(Necessit‡ supplemento) = ", round(tb$estimate[1],2)," + ",
+eq<-paste0("$logit(Necessit√† supplemento) = ", round(tb$estimate[1],2)," + ",
            round(tb$estimate[2],4)," * Tempo tra Anest e Chir (min) + ",
            round(tb$estimate[3],4)," * Blocco profondo +",
            round(tb$estimate[4],4)," * Categoria B +",
