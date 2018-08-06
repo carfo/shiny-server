@@ -23,7 +23,7 @@ library(sjPlot)
 library(stringi)
 options(knitr.kable.NA = '-', knitr.table.format = 'pandoc', digits = 2)
 options(qwraps2_markup = 'markdown')
-opts_template$set(myfigures = list(fig.height = 6, fig.width = 8, dpi=300))
+opts_template$set(myfigures = list(dpi=300, message=FALSE, warning=FALSE, fig.keep='all',fig.path= 'figure/'))
 st_options("round.digits",2)
 
 ```
@@ -48,7 +48,7 @@ my_summary <-
             "Ipoperfusioni" = tab_summary(Ipoperfusione),
             "pH neonato" = tab_summary(pH),
             "Lattati neonato" = tab_summary(Lattati),
-            "NecessitÃ  di efedrina" = tab_summary(Efedrina),
+            "Necessità di efedrina" = tab_summary(Efedrina),
             "Dose di efedrina somministrata" = tab_summary(Dose),
             "Time in target MAP (%)" = tab_summary(MAP),
             "Time in target CI (%)" = tab_summary(CI)
@@ -59,7 +59,7 @@ my_summary_map <-
        list(
             "pH neonato" = tab_summary(pH),
             "Lattati neonato" = tab_summary(Lattati),
-            "NecessitÃ  di efedrina" = tab_summary(Efedrina),
+            "Necessità di efedrina" = tab_summary(Efedrina),
             "Dose di efedrina somministrata" = tab_summary(Dose),
             "Time in target MAP (%)" = tab_summary(MAP),
             "Time in target CI (%)" = tab_summary(CI)
@@ -121,7 +121,7 @@ ggpairs(dt[,.(MAP,CI,pH,Lattati)],
 ```{r plot_ph, warning=FALSE, echo=FALSE, opts.label='myfigures', fig.cap="Distribuzione dei pH misurati"}
 ggplot(data=dt, aes(pH))+
   geom_density(show.legend = F, fill="lightgreen")+
-  labs(title="DensitÃ  di distribuzione del pH", x="pH", y="DensitÃ ")+
+  labs(title="Densità di distribuzione del pH", x="pH", y="Densità")+
   scale_y_continuous()+
   scale_fill_fivethirtyeight()+
   theme_economist()+
@@ -132,7 +132,7 @@ ggplot(data=dt, aes(pH))+
 ```{r plot_lattati, warning=FALSE, echo=FALSE, opts.label='myfigures', fig.cap="Distribuzione dei lattati misurati"}
 ggplot(data=dt, aes(Lattati))+
   geom_density(show.legend = F, fill="khaki")+
-  labs(title="DensitÃ  di distribuzione dei lattati", x="Lattati", y="DensitÃ ")+
+  labs(title="Densità di distribuzione dei lattati", x="Lattati", y="Densità")+
   scale_y_continuous()+
   scale_fill_fivethirtyeight()+
   theme_economist()+
@@ -160,7 +160,7 @@ print(grouped_map,cnames = c(paste0("MAP non in target (n = ",
 ggplot(data=dt, aes(x=Ipotensione,fill=Ipotensione,pH))+
   geom_boxplot(show.legend = F,colour=NA)+
   geom_boxplot(show.legend = F)+
-  labs(title="pH", x="Ipotensione", y="pH", fill="")+
+  labs(title="", x="Ipotensione", y="pH", fill="")+
   stat_summary(fun.y=mean, colour="black", geom="point",
                shape=18, size=3,show.legend = FALSE) +
   # stat_summary(fun.y=mean, geom="text", show.legend = FALSE,
@@ -168,14 +168,14 @@ ggplot(data=dt, aes(x=Ipotensione,fill=Ipotensione,pH))+
   scale_y_continuous()+
   scale_fill_fivethirtyeight()+
   theme_economist()+
-  theme(legend.position="bottom")
+  theme(legend.position="none", axis.title = element_text(size=11,face = "bold"))
 ```
   
 ```{r plot_lattati-map, warning=FALSE, echo=FALSE, opts.label='myfigures', fig.cap="Distribuzione dei lattati misurati - il rombo indica la media"}
 ggplot(data=dt, aes(x=Ipotensione,fill=Ipotensione,Lattati))+
   geom_boxplot(colour=NA)+
   geom_boxplot(show.legend = F)+
-  labs(title="Lattati", x="Ipotensione", y="Lattati",
+  labs(title="", x="Ipotensione", y="Lattati",
        fill="")+
   stat_summary(fun.y=mean, colour="black", geom="point",
                shape=18, size=3,show.legend = FALSE) +
@@ -184,7 +184,7 @@ ggplot(data=dt, aes(x=Ipotensione,fill=Ipotensione,Lattati))+
   scale_y_continuous()+
   scale_fill_fivethirtyeight()+
   theme_economist()+
-  theme(legend.position="bottom")
+  theme(legend.position="none", axis.title = element_text(size=11,face = "bold"))
 ```
 
 ####CI  
@@ -206,7 +206,7 @@ print(grouped_ci,cnames = c(paste0("CI non in target (n = ",
 ggplot(data=dt, aes(x=Ipoperfusione,fill=Ipoperfusione,pH))+
   geom_boxplot(colour=NA)+
   geom_boxplot(show.legend = F)+
-  labs(title="pH", x="Ipoperfusione", y="pH", fill="")+
+  labs(title="", x="Ipoperfusione", y="pH", fill="")+
   stat_summary(fun.y=mean, colour="black", geom="point",
                shape=18, size=3,show.legend = FALSE) +
   # stat_summary(fun.y=mean, geom="text", show.legend = FALSE,
@@ -214,14 +214,14 @@ ggplot(data=dt, aes(x=Ipoperfusione,fill=Ipoperfusione,pH))+
   scale_y_continuous()+
   scale_fill_fivethirtyeight()+
   theme_economist()+
-  theme(legend.position="bottom")
+  theme(legend.position="none", axis.title = element_text(size=11,face = "bold"))
 ```
   
 ```{r plot_lattati-ci, warning=FALSE, echo=FALSE, opts.label='myfigures', fig.cap="Distribuzione dei lattati misurati - il rombo indica la media"}
 ggplot(data=dt, aes(x=Ipoperfusione,fill=Ipoperfusione,Lattati))+
   geom_boxplot(colour=NA)+
   geom_boxplot(show.legend = F)+
-  labs(title="Lattati", x="Ipoperfusione", y="Lattati",
+  labs(title="", x="Ipoperfusione", y="Lattati",
        fill="")+
   stat_summary(fun.y=mean, colour="black", geom="point",
                shape=18, size=3,show.legend = FALSE) +
@@ -230,7 +230,7 @@ ggplot(data=dt, aes(x=Ipoperfusione,fill=Ipoperfusione,Lattati))+
   scale_y_continuous()+
   scale_fill_fivethirtyeight()+
   theme_economist()+
-  theme(legend.position="bottom")
+  theme(legend.position="none", axis.title = element_text(size=11,face = "bold"))
 ```
   
 ###Efedrina
@@ -243,7 +243,7 @@ grouped[grepl("si", rownames(grouped)),
             "P-value"][1:2] <- head(pvals_efe,2)
 print(grouped,cnames = c(paste0("Efedrina non necessaria (n = ",
                                   dt[Efedrina=="no",.N],")"),
-                             paste0("NecessitÃ  di efedrina (n = ",
+                             paste0("Necessità di efedrina (n = ",
                                   dt[Efedrina=="si",.N],")"),
                             "P value"))
 ```
@@ -305,7 +305,7 @@ plot_model(fm2_p,type="eff",terms = c("t.ipotensione",
   scale_y_continuous(limits=c(7.2,7.35),labels = function(x) round(x,2))+
   theme_economist()+
   labs(colour="Tempo in ipoperfusione (%)")+
-  theme(legend.position="bottom")
+  theme(legend.position="bottom", legend.title = element_text(size=11,face = "bold"), axis.title = element_text(size=11,face = "bold"))
 ```
 
 Mentre i coefficienti del modello relativo ai lattati sono:  
@@ -336,5 +336,5 @@ plot_model(fm2_l,type="eff",terms = c("t.ipotensione",
   scale_y_continuous(limits=c(1.5,4.8),labels = function(x) round(x,2))+
   theme_economist()+
   labs(colour="Tempo in ipoperfusione (%)")+
-  theme(legend.position="bottom")
+  theme(legend.position="bottom", legend.title = element_text(size=11,face = "bold"), axis.title = element_text(size=11,face = "bold"))
 ```
