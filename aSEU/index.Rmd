@@ -30,22 +30,27 @@ library(broom)
 library(stringi)
 options(knitr.kable.NA = '-', knitr.table.format = 'pandoc', digits = 2)
 options(qwraps2_markup = 'markdown')
-opts_template$set(myfigures = list(fig.height = 6, fig.width = 7, res=150))
+knitr::opts_knit$set(root.dir = normalizePath(".."))
+opts_template$set(myfigures = list(fig.height = 7, fig.width = 11, res=150, message=FALSE, warning=FALSE, fig.keep='all',fig.path= 'figure/'))
 st_options("round.digits",2)
 
 ```
 ```{r load, message=FALSE, echo=FALSE, warning=FALSE}
-db<-data.table(read.csv(file = "Data/SEU_Database_Penetranza_PARENTELE_pulito.csv",as.is=T))
+db<-data.table(read.csv(file = "Data/SEU_Database_Penetranza_PARENTELE_pulito.csv"))
 setnames(db,"N","Codice.famiglia")
-db[,Data.di.nascita:=as.Date(Data.di.nascita,"%d-%m-%Y")]
-db[,Data.Esordio:=as.Date(Data.Esordio,"%d-%m-%Y")]
+db[,Data.di.nascita:=as.Date(Data.di.nascita,"%d/%m/%Y")]
+db[,Data.Esordio:=as.Date(Data.Esordio,"%d/%m/%Y")]
 db[,Mutazioni:=""]
+db[,dup:=tolower(stri_extract(Esito.MLPA,fixed = "dup", 
+                 case_insensitive=TRUE))=="dup"]
+db[,ibr:=tolower(stri_extract(Esito.MLPA,fixed = "gene ibrido", 
+                 case_insensitive=TRUE))=="gene ibrido"]
 db[(CFH!=""&CFH!="/"&CFH!="Negativo"&CFH!="Negativo (Bergamo)"&CFH!="Sospeso")|
-     ((Esito.MLPA%like%"dup"|Esito.MLPA%like%"Dup"|Esito.MLPA%like%"DUP")&
-        (!(Esito.MLPA%like%"gene ibrido"|Esito.MLPA%like%"Gene Ibrido"))),
+     (!is.na(dup)&is.na(ibr)),
    Mutazioni:=paste("CFH",Mutazioni)]
-db[Esito.MLPA%like%"gene ibrido"|Esito.MLPA%like%"Gene Ibrido",Mutazioni:=paste("Gene ibrido",
-                                                                                Mutazioni)]
+
+
+db[!is.na(ibr),Mutazioni:=paste("Gene ibrido", Mutazioni)]
 db[CFI!=""&CFI!="/"&CFI!="Negativo"&CFI!="Negativo (Bergamo)"&CFI!="Sospeso",
    Mutazioni:=paste("CFI",Mutazioni)]
 db[MCP!=""&MCP!="/"&MCP!="Negativo"&MCP!="Negativo (Bergamo)"&MCP!="Sospeso",
@@ -60,8 +65,7 @@ db[,Mutazioni:=trimws(Mutazioni)]
 db[,Nmutazioni:=stri_count(Mutazioni,fixed=" ")+1]
 db[Nmutazioni==1,Genetica:=Mutazioni]
 db[Nmutazioni>1,Genetica:="Multipla"]
-db[,Evento:=factor(Evento,levels = c("NO","SI"))]
-db[,Sesso:=factor(Sesso)]
+
 db[,ricorrente:=NULL]
 db[Codice.famiglia%in%(db[Evento=="SI", .N, by=Codice.famiglia][N>1]$Codice.famiglia),
    ricorrente:=factor("SI",levels = c("NO","SI"))]
@@ -71,17 +75,33 @@ db[,time:=as.numeric(Data.Esordio-Data.di.nascita)/365.25]
 
 db_livello<-db[Livello!=-3&Livello!=-2]
 db_livello[,Livello:=factor(Livello)]
+db_livello[Nmutazioni==1,Genetica_a:=Mutazioni]
+db_livello[Nmutazioni>1,Genetica_a:="Multipla"]
 db_livello[!(Mutazioni%like%"C3"),Genetica:=factor("Non C3",levels = c("Non C3","C3"))]
 db_livello[Mutazioni%like%"C3",Genetica:=factor("C3",levels = c("Non C3","C3"))]
 my_summary <-
   with(db,
        list("Livello di parentela" = tab_summary(factor(Livello)),
             "Sesso" = tab_summary(Sesso),
-            "time" = c(tab_summary(time)[c(1, 4, 3)],
+            "Età" = c(tab_summary(time)[c(1, 4, 3)],
                                "mean (95% CI)" = ~ frmtci(qwraps2::mean_ci(time)),
                                "median (IQR)" = ~ frmt(qwraps2::median_iqr(time))),
-            "ricorrente" = tab_summary(ricorrente),
-            "Genetica" = tab_summary(Genetica)))
+            "Più di un caso in famiglia" = tab_summary(ricorrente),
+            "Genetica" = tab_summary(Genetica[Genetica!=""]),
+            "Numero mutazioni" = tab_summary(as.factor(Nmutazioni))))
+
+#sapply(base_plot, plot)
+set.seed(1234)
+pvals <-
+   list(
+       chisq.test(table(db$Sesso, db$Evento))$p.value,
+       wilcox.test(time ~ Evento, data=db)$p.value,
+       chisq.test(table(db$ricorrente, db$Evento))$p.value,
+       chisq.test(db[Genetica!=""]$Genetica, db[Genetica!=""]$Evento,
+                  simulate.p.value = T)$p.value,
+       chisq.test(db$Nmutazioni,db$Evento, simulate.p.value = T)$p.value) %>%
+  lapply(frmtp) %>%
+  do.call(c, .)
 
 my_summary_l <-
   with(db_livello,
@@ -90,60 +110,177 @@ my_summary_l <-
             "time" = c(tab_summary(time)[c(1, 4, 3)],
                                "mean (95% CI)" = ~ frmtci(qwraps2::mean_ci(time)),
                                "median (IQR)" = ~ frmt(qwraps2::median_iqr(time))),
-            "ricorrente" = tab_summary(ricorrente),
-            "Genetica" = tab_summary(Genetica)))
-chi.all<-chisq.test(table(db$Genetica,db$Evento),rescale.p = T,simulate.p.value = T)
+            "Più di un caso in famiglia" = tab_summary(ricorrente),
+            "Genetica" = tab_summary(Genetica_a[Genetica_a!=""]),
+            "Numero mutazioni" = tab_summary(as.factor(Nmutazioni))))
+pvals_l <-
+   list(
+       chisq.test(table(db_livello$Sesso, db_livello$Evento))$p.value,
+       wilcox.test(time ~ Evento, data=db_livello)$p.value,
+       chisq.test(table(db_livello$ricorrente, db_livello$Evento))$p.value,
+       chisq.test(db_livello[Genetica_a!=""]$Genetica_a, 
+                  db_livello[Genetica_a!=""]$Evento,simulate.p.value = T)$p.value,
+       chisq.test(db_livello$Nmutazioni,db_livello$Evento, simulate.p.value = T)$p.value) %>%
+  lapply(frmtp) %>%
+  do.call(c, .)
+
+my_summary_l_p <-
+  with(db_livello[Parentela!="Probando"],
+       list("Livello di parentela" = tab_summary(factor(Livello)),
+            "Sesso" = tab_summary(Sesso),
+            "time" = c(tab_summary(time)[c(1, 4, 3)],
+                               "mean (95% CI)" = ~ frmtci(qwraps2::mean_ci(time)),
+                               "median (IQR)" = ~ frmt(qwraps2::median_iqr(time))),
+            "Più di un caso in famiglia" = tab_summary(ricorrente),
+            "Genetica" = tab_summary(Genetica_a[Genetica_a!=""]),
+            "Numero mutazioni" = tab_summary(as.factor(Nmutazioni))))
+
+pvals_l_p <-
+   list(
+       chisq.test(table(db_livello[Parentela!="Probando"]$Sesso, 
+                        db_livello[Parentela!="Probando"]$Evento))$p.value,
+       wilcox.test(time ~ Evento, data=db_livello[Parentela!="Probando"])$p.value,
+       chisq.test(db_livello[Parentela!="Probando"&Genetica_a!=""]$Genetica_a, 
+                  db_livello[Parentela!="Probando"&Genetica_a!=""]$Evento,
+                  simulate.p.value = T)$p.value,
+       chisq.test(db_livello[Parentela!="Probando"]$Nmutazioni,
+                  db_livello[Parentela!="Probando"]$Evento, simulate.p.value = T)$p.value) %>%
+  lapply(frmtp) %>%
+  do.call(c, .)
+
+chi.all<-chisq.test(table(db[Genetica!=""]$Genetica,db[Genetica!=""]$Evento),
+                    rescale.p = T,simulate.p.value = T)
 chi.c3<-chisq.test(table(db_livello$Genetica,db_livello$Evento),rescale.p = T,
                    simulate.p.value = T)
-# my_summary_t <-
-#   with(dt,
-#        list("Osteopontina Plasma" = tab_summary(OPN_P),
-#             "Osteopontina Liquor" = tab_summary(OPN_L),
-#             "PCR" = tab_summary(PCR),
-#             "CPP" = tab_summary(CPP)))
-# 
-# pvals <-
-#    list(
-#        wilcox.test(OPN_P ~ mRS_3_Mesi>2, data=dt[Tempo=="3? giorno"])$p.value,
-#        wilcox.test(OPN_P ~ mRS_3_Mesi>2, data=dt[Tempo=="7? giorno"])$p.value,
-#        wilcox.test(OPN_L ~ mRS_3_Mesi>2, data=dt[Tempo=="Insorgenza"])$p.value,
-#        wilcox.test(OPN_L ~ mRS_3_Mesi>2, data=dt[Tempo=="3? giorno"])$p.value,
-#        wilcox.test(OPN_L ~ mRS_3_Mesi>2, data=dt[Tempo=="7? giorno"])$p.value) %>%
-#   lapply(frmtp) %>%
-#   do.call(c, .)
+
+my_summary_sex <-
+  with(db,
+       list("Livello di parentela" = tab_summary(factor(Livello)),
+            "Età" = c(tab_summary(time)[c(1, 4, 3)],
+                               "mean (95% CI)" = ~ frmtci(qwraps2::mean_ci(time)),
+                               "median (IQR)" = ~ frmt(qwraps2::median_iqr(time))),
+            "Più di un caso in famiglia" = tab_summary(ricorrente),
+            "Genetica" = tab_summary(Genetica[Genetica!=""]),
+            "Numero mutazioni" = tab_summary(as.factor(Nmutazioni))))
+
+pvals_sex <-
+   list(
+       wilcox.test(time ~ Evento, data=db)$p.value,
+       chisq.test(table(db$ricorrente, db$Evento))$p.value,
+       chisq.test(db[Genetica!=""]$Genetica, db[Genetica!=""]$Evento,
+                  simulate.p.value = T)$p.value,
+       chisq.test(db$Nmutazioni,db$Evento, simulate.p.value = T)$p.value) %>%
+  lapply(frmtp) %>%
+  do.call(c, .)
 
 ```
 ## Introduzione e descrittive  
 
-L'intero database storico del centro Ã¨ costituito da `r db[,.N]` individui, suddivisi in `r db[,.N,by=Codice.famiglia][,.N]` gruppi familiari (ognuno composto da `r min(db[,.N,by=Codice.famiglia]$N)`  a `r max(db[,.N,by=Codice.famiglia]$N)` individui, con mediana `r median(db[,.N,by=Codice.famiglia]$N)`). Sono stati rilevati `r db[Evento=="SI",.N]` eventi. In `r db[ricorrente=="SI",.N,by=Codice.famiglia][,.N]` famiglie ci sono stati piÃ¹ casi (da `r min(db[ricorrente=="SI"&Evento=="SI",.N,by=Codice.famiglia]$N)`  a `r max(db[ricorrente=="SI"&Evento=="SI",.N,by=Codice.famiglia]$N)` eventi per famiglia, con mediana `r median(db[ricorrente=="SI"&Evento=="SI",.N,by=Codice.famiglia]$N)`). 
+L'intero database storico del centro è costituito da `r db[,.N]` individui, suddivisi in `r db[,.N,by=Codice.famiglia][,.N]` gruppi familiari (ognuno composto da `r min(db[,.N,by=Codice.famiglia]$N)`  a `r max(db[,.N,by=Codice.famiglia]$N)` individui, con mediana `r median(db[,.N,by=Codice.famiglia]$N)`). Sono stati rilevati `r db[Evento=="SI",.N]` eventi. In `r db[ricorrente=="SI",.N,by=Codice.famiglia][,.N]` famiglie ci sono stati più casi (da `r min(db[ricorrente=="SI"&Evento=="SI",.N,by=Codice.famiglia]$N)`  a `r max(db[ricorrente=="SI"&Evento=="SI",.N,by=Codice.famiglia]$N)` eventi per famiglia, con mediana `r median(db[ricorrente=="SI"&Evento=="SI",.N,by=Codice.famiglia]$N)`). 
   
 ```{r tab_desc, results='asis', echo=FALSE}
 whole <- summary_table(db, my_summary)
 grouped <- summary_table(dplyr::group_by(db, Evento), my_summary)
-print(cbind(whole,grouped), caption = "Intero database")
+grouped <- cbind(whole,grouped, "P-value" = "")
+grouped[rownames(grouped)%in%c("M","mean (sd)","SI","Multipla",
+                               "4"),
+            "P-value"] <- pvals
+print(grouped, caption = "Intero database",
+      cnames=c(paste0("Totale testati (n = ",
+                               db[,.N],")"),
+                        paste0("Senza evento (n = ",
+                               db[Evento=="NO",.N],")"),
+                        paste0("aSEU (n = ", 
+                               db[Evento=="SI",.N],")"),
+                        "P-value"))
 ```
 
-Il campione di individui che ha sviluppato la malattia presenta una distribuzione delle mutazioni differente da chi invece non l'ha avuta (test $\chi2$ di Pearson, `r frmtp(chi.all$p.value, digits = 3, case = "lower")`, suggestivo di ulteriori indagini).
+Il campione di individui che ha sviluppato la malattia presenta una distribuzione delle mutazioni differente da chi invece non l'ha avuta (test $\chi2$ di Pearson, `r tolower(pvals[4])`, suggestivo di ulteriori indagini).
 
-In particolare la mutazione a carico del C3 sembra maggiormente espressa nel gruppo dei malati.
-```{r tab_mutazioni, results='asis', echo=FALSE}
-kable(addmargins(prop.table(table(db$Genetica,db$Evento),2)*100,1),caption = "Distribuzione percentuale delle mutazioni")
+In particolare la mutazione a carico del C3 sembra maggiormente espressa nel gruppo dei malati (test $\chi2$ di Pearson sulla presenza della mutazione, `r frmtp(chi.c3$p.value, digits = 3, case = "lower")`).
+    
+Inoltre sembra che l'età di insorgenza della patologia (ma non l'incidenza totale) sia differente tra uomini e donne (test di Mann-Whitney `r frmtp(wilcox.test(time ~ Evento, data=db)$p.value, digits = 3, case = "lower")`). In particolare le donne sembra che abbiano un secondo ed importante picco di insorgenza in età fertile, oltre a quello mostrato dagli uomini nei primi 10 anni di vita.  
+
+```{r densita, warning=FALSE, echo=FALSE, opts.label='myfigures', fig.cap="Distribuzione dell'età di insorgenza", fig.width=9}
+ggplot(data=db[Evento=="SI"],aes(fill=Sesso,time))+
+  geom_density(alpha=0.4,colour=NA)+
+  labs(title="", 
+       y="Densità", x="Età (anni)")+
+  theme_survminer()
 ```
 
+Questa differenza viene confermata confrontando le caratteristiche nei due sessi dei pazienti che hanno sviluppato la patologia.  
 
-Escludendo i probandi (`r db[Parentela=="Probando",.N]` pazienti identificati come coloro che si sono presentati al centro per la patologia di interesse), otteniamo: 
+```{r tab_desc_sex, results='asis', echo=FALSE}
+whole <- summary_table(db[Evento=="SI"], my_summary_sex)
+grouped <- summary_table(dplyr::group_by(db[Evento=="SI"], Sesso), my_summary_sex)
+grouped <- cbind(whole,grouped, "P-value" = "")
+grouped[rownames(grouped)%in%c("mean (sd)","SI","Multipla",
+                               "4"),
+            "P-value"] <- pvals_sex
+print(grouped, caption = "Pazienti con aSEU",
+      cnames=c(paste0("Totale aSEU (n = ",
+                               db[Evento=="SI",.N],")"),
+                        paste0("Donne (n = ",
+                               db[Evento=="SI"&Sesso=="F",.N],")"),
+                        paste0("Uomini (n = ", 
+                               db[Evento=="SI"&Sesso=="M",.N],")"),
+                        "P-value"))
+```
+  
+Selezionando solo i parenti prossimi si ottiene:    
   
 ```{r tab_desc_livello, results='asis', echo=FALSE}
-whole_l <- summary_table(db_livello[Parentela!="Probando"], my_summary_l)
-grouped_l <- summary_table(dplyr::group_by(db_livello[Parentela!="Probando"],
+whole_l <- summary_table(db_livello, my_summary_l)
+grouped_l <- summary_table(dplyr::group_by(db_livello,
                                            Evento), my_summary_l)
-print(cbind(whole_l,grouped_l), caption = "Parenti prossimi, esclusi i probandi")
+grouped_l <- cbind(whole_l,grouped_l, "P-value" = "")
+grouped_l[rownames(grouped_l)%in%c("M","mean (sd)","SI","Multipla",
+                               "4"),
+            "P-value"] <- pvals_l
+print(grouped_l, caption = "Parenti prossimi, COMPRESI i probandi",
+      cnames=c(paste0("Totale parenti prossimi (n = ",
+                               db_livello[,.N],")"),
+                        paste0("Senza evento (n = ",
+                               db_livello[Evento=="NO",.N],")"),
+                        paste0("aSEU (n = ", 
+                               db_livello[Evento=="SI",.N],")"),
+                        "P-value"))
+```
+  
+  
+
+Per determinare l'influenza della generazione, definita relativamente al primo paziente per famiglia (probando) che si è presentato al centro per la patologia di interesse, è stato generato un secondo dataset.
+Questo secondo dataset contiene solamente i parenti dei probandi (`r db_livello[Parentela!="Probando",.N]` individui). 
+  
+```{r tab_desc_livello_p, results='asis', echo=FALSE}
+whole_l <- summary_table(db_livello[Parentela!="Probando"], my_summary_l_p)
+grouped_l <- summary_table(dplyr::group_by(db_livello[Parentela!="Probando"],
+                                           Evento), my_summary_l_p)
+grouped_l <- cbind(whole_l,grouped_l, "P-value" = "")
+grouped_l[rownames(grouped_l)%in%c("M","mean (sd)","Multipla",
+                               "3"),
+            "P-value"] <- pvals_l_p
+print(grouped_l, caption = "Parenti prossimi, ESCLUSI i probandi",
+      cnames=c(paste0("Totale esclusi i probandi (n = ",
+                               db_livello[Parentela!="Probando",.N],")"),
+                        paste0("Senza evento (n = ",
+                               db_livello[Parentela!="Probando"&Evento=="NO",.N],")"),
+                        paste0("aSEU (n = ", 
+                               db_livello[Parentela!="Probando"&Evento=="SI",.N],")"),
+                        "P-value"))
 ```
 
 ## Analisi di sopravvivenza  
-L'analisi della sopravvivenza, in cui l'evento di interesse Ã¨ lo sviluppo della malattia, Ã¨ stata affrontata con il metodo non parametrico di Kaplan-Meier e successivamente con la modellizzazione degli azzardi proporzionali di Cox.  
-I principali fattori di interesse di cui si vuole valutare l'influenza sono il sesso, la ricorrenza della malattia all'interno della famiglia e il livello di parentela rispetto al probando.  
+L'analisi della sopravvivenza, in cui l'evento di interesse è lo sviluppo della malattia, è stata affrontata con il metodo non parametrico di Kaplan-Meier e successivamente con la modellizzazione degli azzardi proporzionali di Cox.  
+I principali fattori di interesse di cui si vuole valutare l'influenza sono il sesso, la ricorrenza della malattia all'interno della famiglia e il livello di parentela rispetto al probando.    
 ```{r survival, message=FALSE, echo=FALSE, warning=FALSE}
+##### Survival Analysis - solo sesso ####
+fit_s <- survfit(Surv(time, as.numeric(db$Evento)) ~ Sesso, data = db)
+#print(fit)
+cph_s <- coxph(Surv(time, as.numeric(Evento)) ~ Sesso, data = db)
+#print(cph)
+
 ##### Survival Analysis - Famiglie Ricorrenti ####
 fit <- survfit(Surv(time, as.numeric(db$Evento)) ~ ricorrente, data = db)
 #print(fit)
@@ -153,7 +290,7 @@ cph_strata <- coxph(Surv(time, as.numeric(Evento)) ~ ricorrente + strata(Sesso),
                     data = db)
 #print(cph_strata)
 ##### Survival Analysis - Livelli di Parentela ####
-# il grosso problema qui Ã¨ che si utilizzano solo le famiglie con malattia ricorrente
+# il grosso problema qui è che si utilizzano solo le famiglie con malattia ricorrente
 fit_livello <- survfit(Surv(time, as.numeric(Evento)) ~ Livello, 
                        data = db_livello[Parentela!="Probando"])
 #print(fit_livello)
@@ -176,30 +313,51 @@ cph_livello_gen_sex_family <- coxph(Surv(time, as.numeric(Evento)) ~ Livello + G
 #print(cph_livello_gen_sex_family)
 ```
 
-
+```{r survplot, warning=FALSE, echo=FALSE, opts.label='myfigures', fig.cap="K-M plot rischio per sesso"}
+ggsurvplot(fit=fit_s, data = db, cumevents = T, cumevents.col = "black", 
+           pval = T, risk.table = T, risk.table.col = "black", 
+           surv.scale = "percent", break.x.by = 10, ggtheme = theme_pubr(),  
+           legend.title="", xlab="Tempo (anni)", ylab="",pval.size=4)
+```
+  
+Il rischio complessivo non cambia in funzione del sesso. L'unica differenza è l'età di insorgenza della patologia.   
+  
 ```{r survplot.base, warning=FALSE, echo=FALSE, opts.label='myfigures', fig.cap="K-M plot rischio in famiglie con ricorrenza"}
 ggsurvplot(fit=fit, data = db, cumevents = T, cumevents.col = "black", 
            pval = T, risk.table = T, risk.table.col = "black", 
            surv.scale = "percent", break.x.by = 10, ggtheme = theme_pubr(),  
-           legend.title="", xlab="Time (years)", ylab="",pval.size=4)
+           legend.title="", xlab="Tempo (anni)", ylab="",pval.size=4)
 ```
 ```{r survplot.base-sesso, warning=FALSE, echo=FALSE, opts.label='myfigures', fig.cap="K-M plot rischio in famiglie con ricorrenza - stratificato per sesso"}
 ggsurvplot(survfit(Surv(time, as.numeric(Evento)) ~ ricorrente, data = db), 
            cumevents = T, cumevents.col = "black", 
            pval = T, risk.table = T, risk.table.col = "black", 
            surv.scale = "percent", break.x.by = 10,
-           legend.title="Famiglia con ricorrenza", facet.by = "Sesso",
-           xlab="Time (years)", ylab="",pval.size=4)
+           legend.title="Famiglia con più di un caso", facet.by = "Sesso",
+           xlab="Tempo (anni)", ylab="",pval.size=4)
 ```
   
-La presenza di un altro famigliare che ha sviluppato la malattia Ã¨ un importante fattore di rischio (nb probandi esclusi dall'analisi). L'andamento nei due sessi risulta temporalmente differente, anche se il solo sesso non risulta un fattore di rischio.  
+La presenza di un altro famigliare che ha sviluppato la malattia è un importante fattore di rischio (nb probandi esclusi dall'analisi). L'andamento nei due sessi risulta temporalmente differente, anche se il solo sesso non risulta un fattore di rischio.  
 
 ```{r cox.base, warning=FALSE, echo=FALSE, opts.label='myfigures', fig.cap="Hazard ratio del modello di Cox"}
 ggforest(cph_strata, cpositions = c(0.02,0.15, 0.4),
-         data = db, main = "Cox proportional hazard model - famiglie con ricorrenza")
+         data = db, main = "")
 ```
-PiÃ¹ precisamente la ricorrenza comporta un hazard ratio di `r exp(cph_strata$coefficients)`, un azzardo piÃ¹ che raddoppiato quindi.  
-
+Più precisamente la ricorrenza comporta un hazard ratio di `r exp(cph_strata$coefficients)`, un azzardo più che raddoppiato quindi.  
+  
+```{r  cox.base.coef, warning=FALSE, echo=FALSE, message=FALSE, results='asis'}
+tb<-data.table(tidy(cph_strata,conf.int = 0.95))
+knitr::kable(tb[,.(" "= c("Famiglia con ricorrenza"), 
+                   "HR"=exp(estimate),"HR.lower"=exp(conf.low),
+                   "HR.higher"=exp(conf.high),
+                   "$\\beta$"=estimate,
+                   "$\\beta_{lower}$"=conf.low,
+                   "$\\beta_{upper}$"=conf.high,
+                   "P-Value"=frmtp(p.value))],digits = 4 
+             )
+```
+  
+  
 ```{r survplot.livello, warning=FALSE, echo=FALSE, opts.label='myfigures', fig.cap="K-M plot rischio per livello di parentela"}
 ggsurvplot(survfit(Surv(time, as.numeric(Evento)) ~ Livello, 
                    data = db_livello[Parentela!="Probando"]), 
@@ -208,7 +366,7 @@ ggsurvplot(survfit(Surv(time, as.numeric(Evento)) ~ Livello,
            cumevents = T, cumevents.col = "black", 
            risk.table = T, risk.table.col = "black", 
            legend.title="Parentela con probando",tables.height = 0.30,
-           xlab="Time (years)", ylab="")
+           xlab="Tempo (anni)", ylab="")
 ```
   
 
@@ -218,11 +376,11 @@ ggsurvplot(survfit(Surv(time, as.numeric(Evento)) ~ Livello,
            pval = T, data = db_livello[Parentela!="Probando"],
            surv.scale = "percent", break.x.by = 10,
            legend.title="Livello di parentela con probando", facet.by = "Sesso",
-           xlab="Time (years)", ylab="")
+           xlab="Tempo (anni)", ylab="")
 
 ```
 
-Il livello di parentela piÃ¹ a rischio risulta essere quello del probando (fratelli e cugini), mentre i genitori/zii e i figli/nipoti risultano avere un rischio simile ed inferiore.  
+Il livello di parentela più a rischio risulta essere quello del probando (fratelli e cugini), mentre i genitori/zii e i figli/nipoti risultano avere un rischio simile ed inferiore.  
 
 ```{r cox.livello, warning=FALSE, echo=FALSE, opts.label='myfigures', fig.cap="Hazard ratio del modello di Cox per livello di parentela - aggiustato per sesso"}
 # ggforest(cph_livello, 
@@ -230,11 +388,25 @@ Il livello di parentela piÃ¹ a rischio risulta essere quello del probando (fra
 #          main = "Cox proportional hazard model - parentela con probando")
 ggforest(cph_livello_sex, 
          data = db_livello[Parentela!="Probando"],
-         main = "Cox proportional hazard model - parentela con probando - sesso")
+         main = "")
 ```
   
-Come si puÃ² notare il livello dei probandi ha un hazar ratio di `r exp(cph_livello_sex$coefficients[1])` rispetto al livello dei genitori/zii.      
+Come si può notare il livello dei probandi ha un hazard ratio di `r exp(cph_livello_sex$coefficients[1])` rispetto al livello dei genitori/zii.      
   
+```{r cox.livello.coef, warning=FALSE, echo=FALSE, message=FALSE, results='asis'}
+tb<-data.table(tidy(cph_livello_sex,conf.int = 0.95))
+knitr::kable(tb[,.(" "= c("Livello 0 (fratelli, cugini)",
+                          "Livello 1 (figli, nipoti)"), 
+                   "HR"=exp(estimate),"HR.lower"=exp(conf.low),
+                   "HR.higher"=exp(conf.high),
+                   "$\\beta$"=estimate,
+                   "$\\beta_{lower}$"=conf.low,
+                   "$\\beta_{upper}$"=conf.high,
+                   "P-Value"=frmtp(p.value))],digits = 4 
+             )
+```
+    
+    
 ## Regressione logistica - fattori di rischio
 ```{r logistic, message=FALSE, echo=FALSE, warning=FALSE}
 ##### Modello Logistico ####
@@ -249,7 +421,10 @@ g_2<-glm(Evento=="SI" ~ Livello + time + strata(Sesso) + (Mutazioni=="C3"),
 #anova(g,g_2, test="Chisq")
 ```
 
-Per stimare l'importanza di alcuni dei fattori individuati, come l'etÃ , il sesso e la mutazione a carico del C3 Ã¨ stato costruito un modello logistico ad effetti misti. In questo caso sono stati inseriti nell'analisi anche i probandi, in quanto non era di interesse la valutazione del livello di parentela, che verrÃ  utilizzato, insieme alla famiglia di appartenenza, come effetto "random".  
+Per stimare l'importanza di alcuni dei fattori individuati, come l'età, il sesso e la mutazione a carico del C3 è stato costruito un modello logistico ad effetti misti. In questo caso sono stati inseriti nell'analisi anche i probandi, in quanto non era di interesse la valutazione del livello di parentela, che verrà utilizzato, insieme alla famiglia di appartenenza, come effetto "random".  
+  
+I coefficienti di regressione ottenuti nei modelli rappresentano la variazione del logit ($logit(p(x)) = log (\frac{p(x)}{1 − p(x)}) = log(OR) = \alpha+\beta x$) per ogni cambiamento unitario del predittore. Visto che il logit non è intuitivo, di solito si valuta l'effetto del predittore sull'esponenziale del coefficiente di regressione - l'odds ratio.  
+  
 
 ```{r mm.logistic, message=FALSE, echo=FALSE, warning=FALSE}
 db_sel<-db_livello
@@ -260,16 +435,38 @@ g_re <- glmer(Evento=="SI" ~ time + Sesso + Genetica + (Livello|Codice.famiglia)
               control = glmerControl(optimizer= "optimx",
                                      optCtrl  = list(method="nlminb",maxiter=10000)))
 ```
+  
+Coefficienti stimati degli effetti fissi:  
+
+```{r coef-p1, warning=FALSE, echo=FALSE, message=FALSE, results='asis'}
+tb<-data.table(tidy(g_re,conf.int = T))
+knitr::kable(tb[1:4,.(" "= c("Intercetta","Età (anni)","Sesso Maschile",
+                             "Mutazione C3"), 
+                   "OR"=exp(estimate),"OR.lower"=exp(conf.low),
+                   "OR.higher"=exp(conf.high),
+                   "$\\beta$"=estimate,
+                   "$\\beta_{lower}$"=conf.low,
+                   "$\\beta_{upper}$"=conf.high,
+                   "P-Value"=frmtp(p.value))][-1],digits = 4 
+             )
+```  
+  
+  
 ```{r mm.plot, message=FALSE, echo=FALSE, warning=FALSE, opts.label='myfigures', fig.cap="Parametri del modello di regressione logistica"}
 #summary(g_re)
-plot_model(g_re, show.values = T, show.legend = F)
+plot_model(g_re, show.values = T, show.legend = F, title = "",axis.labels = c("Età","Sesso Maschile","Mutazione C3"))+
+  geom_hline(yintercept = 1, linetype=2, alpha=0.7)+theme_survminer()
 ```
 
-Time (l'etÃ ) risulta un fattore protettivo (inferiore a 1). Avere una mutazione del C3 risulta essere un fattore di rischio, mentre il sesso non comporta differenti rischi.
-La generizzabilitÃ  di questi risultati Ã¨ limitata in quanto il numero di casi, come normale in una patologia rara, Ã¨ limitato. L'importanza della mutazione a carico del C3 potrebbe essere dovuta a caratteristiche locali della popolazione.
+L'età risulta un fattore protettivo (inferiore a 1). Avere una mutazione del C3 risulta essere un fattore di rischio, mentre il sesso non comporta differenti rischi.
+La generizzabilità di questi risultati è limitata in quanto il numero di casi, come normale in una patologia rara, è limitato. L'importanza della mutazione a carico del C3 potrebbe essere dovuta a caratteristiche locali della popolazione.  
+E' possibile calcolare anche la probabilità di sviluppare l'evento come  
 
+$p(x)=\frac{e^{\beta_0+\beta_x}}{1+e^{\beta_0+\beta_x}}$
+  
 
-```{r probability, message=FALSE, echo=FALSE, warning=FALSE, opts.label='myfigures', fig.cap="ProbabilitÃ  di sviluppare la malattia in funzione di etÃ  e mutazione a carico del C3"}
-plot_model(g_re, type="eff", terms=c("time","Genetica"), title = "ProbabilitÃ  di sviluppare la malattia", axis.title = c("EtÃ  (anni)","ProbabilitÃ  di ammalarsi"))
+```{r probability, message=FALSE, echo=FALSE, warning=FALSE, opts.label='myfigures', fig.cap="Probabilità di sviluppare la malattia in funzione di età e mutazione a carico del C3"}
+plot_model(g_re, type="eff", terms=c("time","Genetica"), title = "", axis.title = c("Età (anni)","Probabilità di ammalarsi"))+
+  theme_survminer()
 ```
 
