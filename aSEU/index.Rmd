@@ -30,8 +30,8 @@ library(broom)
 library(stringi)
 options(knitr.kable.NA = '-', knitr.table.format = 'pandoc', digits = 2)
 options(qwraps2_markup = 'markdown')
-knitr::opts_knit$set(root.dir = normalizePath(".."))
-opts_template$set(myfigures = list(fig.height = 7, fig.width = 11, res=150, message=FALSE, warning=FALSE, fig.keep='all',fig.path= 'figure/'))
+#knitr::opts_knit$set(root.dir = normalizePath(".."))
+opts_template$set(myfigures = list(fig.height = 7, fig.width = 11, res=150, message=FALSE, warning=FALSE))
 st_options("round.digits",2)
 
 ```
