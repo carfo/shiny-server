@@ -1,4 +1,5 @@
 library(shinydashboard)
+library(lubridate)
 
 skin <- Sys.getenv("DASHBOARD_SKIN")
 skin <- tolower(skin)
