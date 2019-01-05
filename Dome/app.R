@@ -65,7 +65,7 @@ body <- dashboardBody(
     box(
       title = "Ordini", width = NULL,
       solidHeader = TRUE,
-      DTOutput("ordini")
+      dataTableOutput("ordini")
     ),
     box(
       title = "Pompe", width = NULL,
