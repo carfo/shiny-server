@@ -1,3 +1,4 @@
+source("global.R")
 library(shinydashboard)
 
 skin <- Sys.getenv("DASHBOARD_SKIN")
