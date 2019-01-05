@@ -1,0 +1,25 @@
+.main-header .logo {
+  font-family: "Georgia", Times, "Times New Roman", serif;
+  font-weight: bold;
+  font-size: 24px;
+}
+
+.main-sidebar {
+  background-color:  #000000;
+}
+
+.body {
+  font-family: "Georgia", Times, "Times New Roman", serif;
+  background-color: #000000;
+  font-size: 24px;
+}
+
+.box-body{
+  background-color: transparent;
+  border-color: transparent;
+}
+
+.box{
+  background-color: transparent;
+  border-color: transparent;
+}
