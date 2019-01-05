@@ -70,7 +70,7 @@ body <- dashboardBody(
     box(
       title = "Pompe", width = NULL,
       solidHeader = TRUE,
-      DTOutput("pompe"),
+      dataTableOutput("pompe"),
       actionBttn(inputId = "new_shipment", label = "Spedisci", style = "minimal", color = "primary")
     )
   ),
@@ -506,7 +506,7 @@ server <- function(session, input, output) {
   # Search
   searchModal <- function(failed = FALSE) {
     modalDialog(
-      DTOutput("searchDT"),
+      dataTableOutput("searchDT"),
       if (failed)
         div(tags$b("Codice non trovato", style = "color: red;")),
       footer = tagList(
