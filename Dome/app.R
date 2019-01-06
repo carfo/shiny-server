@@ -1,3 +1,11 @@
+# controllo uso db
+# modifica dati (previo check)
+# maiuscolo/minuscolo nel search
+# colori rosso->giallo
+# Gestionale SN
+# importazione clienti
+# su ricerca: cliente ordine e bolla (con date)
+# logo teorema
 source("global.R")
 library(shinydashboard)
 
