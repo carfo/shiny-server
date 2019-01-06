@@ -6,6 +6,9 @@
 # importazione clienti
 # su ricerca: cliente ordine e bolla (con date)
 # logo teorema
+# esportare sn per bolla o per cliente
+# note su ordine
+# note su pompa
 source("global.R")
 library(shinydashboard)
 
