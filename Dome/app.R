@@ -472,7 +472,7 @@ server <- function(session, input, output) {
   #Aggiunta pompe
   observeEvent(input$newSN,{
     req(input$newSN)
-    sn<-stri_split_lines1(input$newSN)
+    sn<-unique(stri_split_lines1(input$newSN))
     if(NROW(db$pumpData[Serial.Number%in%sn])>0)
       sendSweetAlert(
         session = session, title = "Error !!", text = "Pompa già in db", type = "error"
@@ -481,7 +481,7 @@ server <- function(session, input, output) {
   #Aggiunta pompe a ordine
   observeEvent(input$associa,{
     req(input$newSN)
-    sn<-stri_split_lines1(input$newSN)
+    sn<-unique(stri_split_lines1(input$newSN))
     if(NROW(db$pumpData[Serial.Number%in%sn])>0)
       sendSweetAlert(
         session = session, title = "Errore!!", text = "Alcune pompe sono già in db", type = "error"
