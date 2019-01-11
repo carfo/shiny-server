@@ -1,8 +1,5 @@
 # controllo uso db
 # modifica dati (previo check)
-# maiuscolo/minuscolo nel search
-# colori rosso->giallo
-# Gestionale SN
 # importazione clienti
 # su ricerca: cliente ordine e bolla (con date)
 # logo teorema
@@ -19,9 +16,6 @@ if (skin == "")
 
 ##### SIDEBAR ####
 sidebar <- dashboardSidebar(
-  #sidebarSearchForm(label = "Cerca un cliente", "searchClientText", "searchClientButton"),
-  #sidebarSearchForm(label = "Cerca un ordine", "searchOrderText", "searchOrderButton"),
-  actionButton(inputId = "new_client", label = "Nuovo Cliente", icon = icon("address-card")),
   actionButton(inputId = "new_order", label = "Nuovo Ordine", icon = icon("cart-plus")),
   sidebarSearchForm(label = "Cerca un Serial Number", "searchSNText", "searchSNButton"),
   sidebarMenu(
@@ -35,7 +29,8 @@ sidebar <- dashboardSidebar(
       inputId = "nome",
       label = "Cliente:",
       choices = ""
-    )
+    ),
+    actionButton(inputId = "new_client", label = "Nuovo Cliente", icon = icon("address-card"))
     #,
     #bookmarkButton(label = "Salva tutte cose", title="Non si sa mai")
   )
@@ -62,8 +57,6 @@ body <- dashboardBody(
                     .skin-blue .main-header .logo:hover {
                     background-color: #808080;
                     }
-
-
                     .box-header .box-title {
                     font-weight: bold;
                     }
@@ -98,7 +91,7 @@ body <- dashboardBody(
   ),
   fluidRow(
     column(width=12, offset=5,
-       actionBttn(inputId = "associa", label = "Associa a ordine", style = "minimal", color = "primary")
+           actionBttn(inputId = "associa", label = "Associa a ordine", style = "minimal", color = "primary")
     )
   )
     )
@@ -155,11 +148,11 @@ tasks <- dropdownMenu(type = "tasks", badgeStatus = "success",
 )
 ##### HEADER ####
 header <- dashboardHeader(
-  title = "Gestionale"
+  title = "Gestionale Serial Number"
   #,
-#  messages,
-#  notifications,
-#  tasks
+  #  messages,
+  #  notifications,
+  #  tasks
 )
 ##### UI ####
 ui<-function(req) {
@@ -168,15 +161,13 @@ ui<-function(req) {
 ##### SERVER ####
 server <- function(session, input, output) {
   ##### DATA ####
-  #clientFile<-"data.csv"
-
-
   db<-reactiveValues(clientData = data.table(dbReadTable(pool,"Clienti")),
                      orderData = data.table(dbReadTable(pool,"Ordini")),
                      pumpData = data.table(dbReadTable(pool,"Pompe")),
                      shipData = data.table(dbReadTable(pool,"Spedizioni")),
                      osData = data.table(dbReadTable(pool,"Ordine_spedizione")),
                      psData = data.table(dbReadTable(pool,"Pompa_Spedizione")))
+
   isolate(db$orderData[,Data:=as.Date(Data, origin = "1970-01-01")])
   isolate(db$shipData[,Data:=as.Date(Data, origin = "1970-01-01")])
 
@@ -265,6 +256,7 @@ server <- function(session, input, output) {
       dateInput("data_ordine","Data dell'ordine",value = Sys.Date(),format="dd-mm-yyyy",
                 language="it"),
       numericInput("quant_ordine", "Quantità ordine",value=0),
+      textAreaInput("note_ordine", label = "Note ordine", rows = 3),
       span("Inserisci i dati dell'ordine",
            ""),
       if (failed)
@@ -358,6 +350,7 @@ server <- function(session, input, output) {
                 placeholder = 'Inserisci il DDT'
       ),
       dateInput("data_spedizione","Data della spedizione",value = Sys.Date(),format="dd-mm-yyyy",language="it"),
+      textAreaInput("note_spedizione", label = "Note spedizione", rows = 3),
       span("Inserisci una nuova spedizione",
            ""),
       if (failed)
@@ -447,9 +440,9 @@ server <- function(session, input, output) {
       output$ordini <- renderDT(formatStyle(datatable(ordini, options = list(columnDefs= list(list(visible=FALSE,
                                                                                                    targets=c(1,5))))),
                                             target="row","Spedite",
-                                            backgroundColor = styleInterval(1, c("#EF3B2C","#74C476"))))
+                                            backgroundColor = styleInterval(1, c("#ffeda0","#74C476"))))
       output$pompe <- renderDT(NULL)
-  })
+    })
   #Pompe dell'ordine e stato
   observeEvent(c(
     input$ordini_rows_selected,
@@ -471,14 +464,14 @@ server <- function(session, input, output) {
                                                                       columnDefs = list(list(visible=FALSE,
                                                                                              targets=c(4))))),
                     "Spedite", target = "row",
-                    backgroundColor = styleEqual(c(0, 1), c("#EF3B2C","#74C476"))))
+                    backgroundColor = styleEqual(c(0, 1), c("#ffeda0","#74C476"))))
 
       if(rv$new_pump)
         isolate(rv$new_pump<-FALSE)
 
       if(rv$new_ship)
         isolate(rv$new_ship<-FALSE)
-  })
+    })
 
   #Aggiunta pompe
   #observeEvent(input$newSN,{
@@ -504,11 +497,11 @@ server <- function(session, input, output) {
         )
       else{
         new_pump <- data.table(ID=max(db$pumpData$ID,na.rm=T)+1:length(sn),
-                              Serial.Number=sn,
-                              ID_Tipo=rep("NA",length(sn)),
-                              ID_ordine=rep(db$orderData[ID_cliente==input$nome][
-                                input$ordini_rows_selected]$Codice_ordine,
-                                            length(sn)))
+                               Serial.Number=sn,
+                               ID_Tipo=rep("NA",length(sn)),
+                               ID_ordine=rep(db$orderData[ID_cliente==input$nome][
+                                 input$ordini_rows_selected]$Codice_ordine,
+                                 length(sn)))
         db$pumpData<-rbindlist(list(db$pumpData,new_pump))
         dbWriteTable(pool,"Pompe",db$pumpData, overwrite=T)
         rv$new_pump<-TRUE
@@ -529,10 +522,9 @@ server <- function(session, input, output) {
 
   observeEvent(input$searchSNButton,{
     req(input$searchSNText)
-    print(input$searchSNText)
-    if(NROW(db$pumpData[Serial.Number%like%trimws(input$searchSNText)])>0){
+    if(NROW(db$pumpData[tolower(Serial.Number)%like%tolower(trimws(input$searchSNText))])>0){
       output$searchDT<-renderDT(datatable(
-        db$pumpData[Serial.Number%like%trimws(input$searchSNText)]))
+        db$pumpData[tolower(Serial.Number)%like%tolower(trimws(input$searchSNText))]))
       showModal(searchModal())
     }else{
       output$searchDT<-renderDT(NULL)
