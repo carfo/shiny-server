@@ -4,8 +4,8 @@
 # su ricerca: cliente ordine e bolla (con date)
 # logo teorema
 # esportare sn per bolla o per cliente
-# note su ordine
-# note su pompa
+# note su ordine OK
+# note su pompa OK (in realtà su associazione pompa spedizione)
 source("global.R")
 library(shinydashboard)
 
@@ -219,8 +219,10 @@ server <- function(session, input, output) {
                              Telefono = input$telefono_cliente,
                              email = input$email_cliente)
       db$clientData<-rbindlist(list(db$clientData,new_client))
-      # inserire nel db
-      dbWriteTable(pool,"Clienti",db$clientData)
+      # inserire nel db (append)
+      # dbWriteTable(pool,"Clienti", new_client, append = T)
+      # inserire nel db (overwrite)
+      dbWriteTable(pool,"Clienti", db$clientData, overwrite = T)
 
       rv$new_client<-TRUE
       sendSweetAlert(
@@ -277,10 +279,13 @@ server <- function(session, input, output) {
                             Codice_ordine = input$cod_ordine,
                             Data = input$data_ordine,
                             Q = input$quant_ordine,
+                            Note = input$note_ordine,
                             ID_cliente = input$ord_cliente)
       db$orderData<-rbindlist(list(db$orderData,new_order))
-      # inserire nel db
-      dbWriteTable(pool,"Ordini",db$orderData)
+      # inserire nel db (append)
+      # dbWriteTable(pool,"Ordini",new_order, append = TRUE)
+      # inserire nel db (overwrite)
+      dbWriteTable(pool,"Ordini",db$orderData, overwrite = TRUE)
 
       rv$new_order<-TRUE
       sendSweetAlert(
@@ -384,15 +389,19 @@ server <- function(session, input, output) {
                                   DDT = input$cod_spedizione,
                                   Data = input$data_spedizione)
         new_ps <-data.table(ID_pompa = pompeSpedite[input$pompe_rows_selected]$ID_pompa,
+                            Note = input$note_spedizione,
                             ID_spedizione = rep(max(db$shipData$ID,na.rm=T)+1,length(input$pompe_rows_selected)))
         new_os <-data.table(ID_ordine = pompeSpedite[input$pompe_rows_selected]$Codice_ordine[1],
                             ID_spedizione = max(db$shipData$ID,na.rm=T)+1)
-        print(new_os)
         # associazione psData e osData
         db$shipData<-rbindlist(list(db$shipData,new_shipment))
         db$psData<-rbindlist(list(db$psData,new_ps))
         db$osData<-rbindlist(list(db$osData,new_os))
-        # inserire nel db
+        # inserire nel db (append)
+        # dbWriteTable(pool,"Ordine_spedizione", new_os, append=T)
+        # dbWriteTable(pool,"Pompa_Spedizione", new_ps, append=T)
+        # dbWriteTable(pool,"Spedizione", new_shipment, append=T)
+        # inserire nel db (overwrite)
         dbWriteTable(pool,"Ordine_spedizione", db$osData, overwrite=T)
         dbWriteTable(pool,"Pompa_Spedizione", db$psData, overwrite=T)
         dbWriteTable(pool,"Spedizione", db$shipData, overwrite=T)
@@ -503,6 +512,9 @@ server <- function(session, input, output) {
                                  input$ordini_rows_selected]$Codice_ordine,
                                  length(sn)))
         db$pumpData<-rbindlist(list(db$pumpData,new_pump))
+        # insert in db (append)
+        # dbWriteTable(pool,"Pompe", new_pump, append=T)
+        # insert in db (overwrite)
         dbWriteTable(pool,"Pompe",db$pumpData, overwrite=T)
         rv$new_pump<-TRUE
       }
@@ -522,9 +534,14 @@ server <- function(session, input, output) {
 
   observeEvent(input$searchSNButton,{
     req(input$searchSNText)
-    if(NROW(db$pumpData[tolower(Serial.Number)%like%tolower(trimws(input$searchSNText))])>0){
-      output$searchDT<-renderDT(datatable(
-        db$pumpData[tolower(Serial.Number)%like%tolower(trimws(input$searchSNText))]))
+    res <- db$pumpData[tolower(Serial.Number)%like%tolower(trimws(input$searchSNText))]
+    pompeAssegnate <- db$orderData[res,on=c("Codice_ordine"="ID_ordine"),nomatch=0]
+    setnames(pompeAssegnate,c("i.ID","Data", "Note"),c("ID_pompa","Data.Ordine", "Note.Ordine"))
+    res <-db$shipData[db$psData[pompeAssegnate,on=c("ID_pompa")],on=c("ID"="ID_spedizione")]
+    setnames(res,c("Data", "Note"),c("Data.Spedizione", "Note.Spedizione"))
+    if(NROW(res)>0){
+      output$searchDT<-renderDT(datatable(res[,.(Serial.Number,Data.Ordine,Note.Ordine,
+                                                 Data.Spedizione,Note.Spedizione)]))
       showModal(searchModal())
     }else{
       output$searchDT<-renderDT(NULL)
