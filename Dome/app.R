@@ -387,7 +387,7 @@ server <- function(session, input, output) {
       setnames(pompeAssegnate,c("i.ID","Data"),c("ID_pompa","Data.Ordine"))
       pompeSpedite <-db$shipData[db$psData[pompeAssegnate,on=c("ID_pompa")],on=c("ID"="ID_spedizione")]
       setnames(pompeSpedite,c("Data"),c("Data.Spedizione"))
-      if(pompeSpedite[input$pompe_rows_selected][!is.na(DDT)]){
+      if(pompeSpedite[input$pompe_rows_selected][!is.na(DDT),.N]>1){
         sendSweetAlert(
           session = session, title = "Errore !!", text = "Le pompe risultano già spedite", type = "error"
         )
