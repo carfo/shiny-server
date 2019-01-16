@@ -13,9 +13,6 @@ pool <- dbPool(
   drv = RSQLite::SQLite(),
   dbname = db_file
 )
-onStop(function() {
-  poolClose(pool)
-})
 
 skin <- Sys.getenv("DASHBOARD_SKIN")
 skin <- tolower(skin)
@@ -172,7 +169,7 @@ server <- function(session, input, output) {
   db<-reactiveValues(clientData = data.table(dbReadTable(pool,"Clienti")),
                      orderData = data.table(dbReadTable(pool,"Ordini")),
                      pumpData = data.table(dbReadTable(pool,"Pompe")),
-                     shipData = data.table(dbReadTable(pool,"Spedizioni")),
+                     shipData = data.table(dbReadTable(pool,"Spedizione")),
                      osData = data.table(dbReadTable(pool,"Ordine_spedizione")),
                      psData = data.table(dbReadTable(pool,"Pompa_Spedizione")))
 
@@ -287,8 +284,8 @@ server <- function(session, input, output) {
                             Codice_ordine = input$cod_ordine,
                             Data = input$data_ordine,
                             Q = input$quant_ordine,
-                            Note = input$note_ordine,
-                            ID_cliente = input$ord_cliente)
+                            ID_cliente = input$ord_cliente,
+                            Note = input$note_ordine)
       db$orderData<-rbindlist(list(db$orderData,new_order))
       # inserire nel db (append)
       # dbWriteTable(pool,"Ordini",new_order, append = TRUE)
@@ -384,10 +381,10 @@ server <- function(session, input, output) {
     ) {
       pompeAssegnate <- db$orderData[ID_cliente==input$nome][input$ordini_rows_selected][
         db$pumpData,on=c("Codice_ordine"="ID_ordine"),nomatch=0]
-      setnames(pompeAssegnate,c("i.ID","Data"),c("ID_pompa","Data.Ordine"))
+      setnames(pompeAssegnate,c("i.ID","Data","Note"),c("ID_pompa","Data.Ordine","Note.Ordine"))
       pompeSpedite <-db$shipData[db$psData[pompeAssegnate,on=c("ID_pompa")],on=c("ID"="ID_spedizione")]
-      setnames(pompeSpedite,c("Data"),c("Data.Spedizione"))
-      if(pompeSpedite[input$pompe_rows_selected][!is.na(DDT),.N]>1){
+      setnames(pompeSpedite,c("Data","Note"),c("Data.Spedizione","Note.Spedizione"))
+      if(pompeSpedite[input$pompe_rows_selected][!is.na(DDT),.N]>=1){
         sendSweetAlert(
           session = session, title = "Errore !!", text = "Le pompe risultano già spedite", type = "error"
         )
@@ -397,8 +394,8 @@ server <- function(session, input, output) {
                                   DDT = input$cod_spedizione,
                                   Data = input$data_spedizione)
         new_ps <-data.table(ID_pompa = pompeSpedite[input$pompe_rows_selected]$ID_pompa,
-                            Note = input$note_spedizione,
-                            ID_spedizione = rep(max(db$shipData$ID,na.rm=T)+1,length(input$pompe_rows_selected)))
+                            ID_spedizione = rep(max(db$shipData$ID,na.rm=T)+1,length(input$pompe_rows_selected)),
+                            Note = input$note_spedizione)
         new_os <-data.table(ID_ordine = pompeSpedite[input$pompe_rows_selected]$Codice_ordine[1],
                             ID_spedizione = max(db$shipData$ID,na.rm=T)+1)
         # associazione psData e osData
@@ -411,6 +408,7 @@ server <- function(session, input, output) {
         # dbWriteTable(pool,"Spedizione", new_shipment, append=T)
         # inserire nel db (overwrite)
         dbWriteTable(pool,"Ordine_spedizione", db$osData, overwrite=T)
+        ## NON RIESCO A FAR SALVARE IL FOTTUTO DDT
         dbWriteTable(pool,"Pompa_Spedizione", db$psData, overwrite=T)
         dbWriteTable(pool,"Spedizione", db$shipData, overwrite=T)
         rv$new_ship<-TRUE
@@ -447,15 +445,15 @@ server <- function(session, input, output) {
     {
       pompeAssegnate <- db$orderData[ID_cliente==input$nome][
         db$pumpData,on=c("Codice_ordine"="ID_ordine"),nomatch=0]
-      setnames(pompeAssegnate,c("i.ID","Data"),c("ID_pompa","Data.Ordine"))
+      setnames(pompeAssegnate,c("i.ID","Data","Note"),c("ID_pompa","Data.Ordine","Note.Ordine"))
       pompeSpedite <-db$shipData[db$psData[pompeAssegnate,on=c("ID_pompa")],on=c("ID"="ID_spedizione")]
-      setnames(pompeSpedite,c("Data"),c("Data.Spedizione"))
-      ordini<-db$orderData[ID_cliente==input$nome,.SD,.SDcols=c("ID","Codice_ordine","Data","Q")][
+      setnames(pompeSpedite,c("Data","Note"),c("Data.Spedizione","Note.Spedizione"))
+      ordini<-db$orderData[ID_cliente==input$nome,.SD,.SDcols=c("ID","Codice_ordine","Data","Q","Note")][
         pompeSpedite[!is.na(Data.Spedizione),.(Spedite=.N),by=Codice_ordine], on="Codice_ordine"]
       ordini[,Spedite:=Spedite/Q]
       setorder(ordini,"ID")
       output$ordini <- renderDT(formatStyle(datatable(ordini, options = list(columnDefs= list(list(visible=FALSE,
-                                                                                                   targets=c(1,5))))),
+                                                                                                   targets=c(1,6))))),
                                             target="row","Spedite",
                                             backgroundColor = styleInterval(1, c("#ffeda0","#74C476"))))
       output$pompe <- renderDT(NULL)
@@ -469,12 +467,12 @@ server <- function(session, input, output) {
       req(input$ordini_rows_selected)
       pompeAssegnate <- db$orderData[ID_cliente==input$nome][input$ordini_rows_selected][
         db$pumpData,on=c("Codice_ordine"="ID_ordine"),nomatch=0]
-      setnames(pompeAssegnate,c("i.ID","Data"),c("ID_pompa","Data.Ordine"))
+      setnames(pompeAssegnate,c("i.ID","Data","Note"),c("ID_pompa","Data.Ordine","Note.Ordine"))
       pompeSpedite <-db$shipData[db$psData[pompeAssegnate,on=c("ID_pompa")],on=c("ID"="ID_spedizione")]
-      setnames(pompeSpedite,c("Data"),c("Data.Spedizione"))
+      setnames(pompeSpedite,c("Data","Note"),c("Data.Spedizione","Note.Spedizione"))
       pompeSpedite[,Spedite:=as.numeric(!is.na(Data.Spedizione))]
       output$pompe <- renderDT(if(length(input$ordini_rows_selected))
-        formatStyle(datatable(pompeSpedite[,.(Serial.Number,DDT,Data.Spedizione,Spedite)],
+        formatStyle(datatable(pompeSpedite[,.(Serial.Number,DDT,Data.Spedizione,Spedite,Note.Spedizione)],
                               extensions = 'Scroller', options = list(deferRender = TRUE,
                                                                       scrollY = 200,
                                                                       scroller = TRUE,
