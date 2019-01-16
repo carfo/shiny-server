@@ -9,6 +9,14 @@
 source("global.R")
 library(shinydashboard)
 
+pool <- dbPool(
+  drv = RSQLite::SQLite(),
+  dbname = db_file
+)
+onStop(function() {
+  poolClose(pool)
+})
+
 skin <- Sys.getenv("DASHBOARD_SKIN")
 skin <- tolower(skin)
 if (skin == "")
