@@ -24,7 +24,8 @@ ui <- fluidPage(
   ),
   div(class = "footer",
       br(),
-      tags$img(src="logo.png"))
+      tags$img(src="logo.png"),
+      br())
 )
 
 server = shinyServer(function(input, output,session) {
