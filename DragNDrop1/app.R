@@ -9,7 +9,7 @@ ui <- fluidPage(
   sidebarLayout(
     # Sidebar with a slider input
     sidebarPanel(
-      tags$style(type = "text/css",".dragelement {font-size: large};"),
+      tags$style(type = "text/css",".dragelement {font-size: large;height:25px; width:200px};"),
       h2("Fattori individuati dal Gruppo 1"),
       dragSetUI("div1", textval = as.list(items[V2==group])$V1),
       width = 3
