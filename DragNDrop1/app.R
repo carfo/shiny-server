@@ -17,7 +17,7 @@ ui <- fluidPage(
     mainPanel(tags$style(type = "text/css",".dropelement {background-image: url('background.png');
                          height:600px; width:850px}"),
               tags$style(type = "text/css",".footer {background-color: #D2232A}"),
-              jqui_resizable(dropUI("div2", row_n = 80, col_n = 40),
+              jqui_resizable(dropUI("div2", row_n = 10, col_n = 10),
                              options = list(minWidth= 850, minHeight = 600, maxWidth= 850, maxHeight = 600))
               #verbatimTextOutput("foo"),
     )
