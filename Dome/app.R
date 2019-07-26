@@ -75,6 +75,12 @@ body <- dashboardBody(
     box(
       title = "Ordini", width = NULL,
       solidHeader = TRUE,
+      column(6,offset = 5,
+             HTML('<div class="btn-group" role="group" aria-label="Basic example">'),
+             actionButton(inputId = "Del_row_ordini",label = "Elimina la selezione"),
+             actionButton(inputId = "Mod_row_head",label = "Modifica la selezione"),
+             HTML('</div>')
+      ),
       dataTableOutput("ordini")
     ),
     box(
@@ -452,12 +458,148 @@ server <- function(session, input, output) {
         pompeSpedite[!is.na(Data.Spedizione),.(Spedite=.N),by=Codice_ordine], on="Codice_ordine"]
       ordini[,Spedite:=Spedite/Q]
       setorder(ordini,"ID")
-      output$ordini <- renderDT(formatStyle(datatable(ordini, options = list(columnDefs= list(list(visible=FALSE,
-                                                                                                   targets=c(1,6))))),
+      output$ordini <- renderDT({
+        formatStyle(datatable(ordini, options = list(columnDefs= list(list(visible=FALSE,targets=c(1,6))))),
                                             target="row","Spedite",
-                                            backgroundColor = styleInterval(1, c("#ffeda0","#74C476"))))
+                                            backgroundColor = styleInterval(1, c("#ffeda0","#74C476")))})
       output$pompe <- renderDT(NULL)
     })
+
+  observeEvent(input$Del_row_ordini,{
+    row_to_del=as.numeric(gsub("Row","",input$ordini_rows_selected))
+    pompeAssegnate <- db$orderData[ID_cliente==input$nome][
+      db$pumpData,on=c("Codice_ordine"="ID_ordine"),nomatch=0]
+    setnames(pompeAssegnate,c("i.ID","Data","Note"),c("ID_pompa","Data.Ordine","Note.Ordine"))
+    pompeSpedite <-db$shipData[db$psData[pompeAssegnate,on=c("ID_pompa")],on=c("ID"="ID_spedizione")]
+    setnames(pompeSpedite,c("Data","Note"),c("Data.Spedizione","Note.Spedizione"))
+    ordini<-db$orderData[ID_cliente==input$nome,.SD,.SDcols=c("ID","Codice_ordine","Data","Q","Note")][
+      pompeSpedite[!is.na(Data.Spedizione),.(Spedite=.N),by=Codice_ordine], on="Codice_ordine"]
+    ordini[,Spedite:=Spedite/Q]
+    setorder(ordini,"ID")
+    #elimina ordine da db
+    print(db$orderData[ID_cliente==input$nome&Codice_ordine%in%ordini[row_to_del,Codice_ordine]])
+    #elimina pompe da db
+    print(db$pumpData[ID_ordine%in%ordini[row_to_del,Codice_ordine]])
+    }
+  )
+  observeEvent(input$Mod_row_head,{
+    req(input$ordini_rows_selected)
+    choices<-db$clientData$Codice.cliente
+    names(choices)<-db$clientData$Nome
+    showModal(modal_modify(choices))
+  })
+  ##Managing in row deletion
+  modal_modify<-function(choices="",failed = FALSE){
+    modalDialog(
+    fluidPage(
+      h3(strong("Row modification"),align="center"),
+          useSweetAlert(),
+      dataTableOutput('row_modif'),
+          textInput("cod_ordine", "Codice",
+                    placeholder = 'Inserisci il codice ordine'
+          ),
+          pickerInput("ord_cliente", "Cliente",choices = choices,multiple = FALSE,
+                      options = list(`live-search` = TRUE,size = 5,
+                                     title = "Scegli il cliente",
+                                     style="btn-primary")
+          ),
+          dateInput("data_ordine","Data dell'ordine",value = Sys.Date(),format="dd-mm-yyyy",
+                    language="it"),
+          numericInput("quant_ordine", "Quantità ordine",value=0),
+          textAreaInput("note_ordine", label = "Note ordine", rows = 3),
+          span("Inserisci i dati dell'ordine",
+               ""),
+          if (failed)
+            div(tags$b("Ordine non valido", style = "color: red;"))
+    ),
+
+          footer = tagList(
+            modalButton("Cancel"),
+            actionButton("modify_order", "OK")
+          )
+
+      )
+  }
+
+  output$row_modif<-renderDataTable({
+    pompeAssegnate <- db$orderData[ID_cliente==input$nome][
+      db$pumpData,on=c("Codice_ordine"="ID_ordine"),nomatch=0]
+    setnames(pompeAssegnate,c("i.ID","Data","Note"),c("ID_pompa","Data.Ordine","Note.Ordine"))
+    pompeSpedite <-db$shipData[db$psData[pompeAssegnate,on=c("ID_pompa")],on=c("ID"="ID_spedizione")]
+    setnames(pompeSpedite,c("Data","Note"),c("Data.Spedizione","Note.Spedizione"))
+    ordini<-db$orderData[ID_cliente==input$nome,.SD,.SDcols=c("ID","Codice_ordine","Data","Q","Note")][
+      pompeSpedite[!is.na(Data.Spedizione),.(Spedite=.N),by=Codice_ordine], on="Codice_ordine"]
+    ordini[,Spedite:=Spedite/Q]
+    setorder(ordini,"ID")
+    old_row=db$orderData[ID_cliente==input$nome&Codice_ordine%in%ordini[input$ordini_rows_selected,Codice_ordine]]
+    old_row
+  },escape=F,options=list(dom='t',ordering=F)
+  )
+  observeEvent(input$modify_order,
+               {
+                 req(input$ordini_rows_selected)
+
+                 if (!is.null(input$cod_ordine) && nzchar(input$cod_ordine) && input$ord_cliente!="") {
+                   # pompeAssegnate <- db$orderData[ID_cliente==input$nome][
+                   #   db$pumpData,on=c("Codice_ordine"="ID_ordine"),nomatch=0]
+                   # setnames(pompeAssegnate,c("i.ID","Data","Note"),c("ID_pompa","Data.Ordine","Note.Ordine"))
+                   # pompeSpedite <-db$shipData[db$psData[pompeAssegnate,on=c("ID_pompa")],on=c("ID"="ID_spedizione")]
+                   # setnames(pompeSpedite,c("Data","Note"),c("Data.Spedizione","Note.Spedizione"))
+                   # ordini<-db$orderData[ID_cliente==input$nome,.SD,.SDcols=c("ID","Codice_ordine","Data","Q","Note")][
+                   #   pompeSpedite[!is.na(Data.Spedizione),.(Spedite=.N),by=Codice_ordine], on="Codice_ordine"]
+                   # ordini[,Spedite:=Spedite/Q]
+                   # setorder(ordini,"ID")
+                   # old_row=db$orderData[ID_cliente==input$nome&Codice_ordine%in%ordini[input$ordini_rows_selected,Codice_ordine]]
+
+                   # pompeAssegnate <- db$orderData[ID_cliente==input$nome][
+                   #   db$pumpData,on=c("Codice_ordine"="ID_ordine"),nomatch=0]
+                   # setnames(pompeAssegnate,c("i.ID","Data","Note"),c("ID_pompa","Data.Ordine","Note.Ordine"))
+                   # pompeSpedite <-db$shipData[db$psData[pompeAssegnate,on=c("ID_pompa")],on=c("ID"="ID_spedizione")]
+                   # setnames(pompeSpedite,c("Data","Note"),c("Data.Spedizione","Note.Spedizione"))
+                   # ordini<-db$orderData[ID_cliente==input$nome,.SD,.SDcols=c("ID","Codice_ordine","Data","Q","Note")][
+                   #   pompeSpedite[!is.na(Data.Spedizione),.(Spedite=.N),by=Codice_ordine], on="Codice_ordine"]
+                   # ordini[,Spedite:=Spedite/Q]
+                   # setorder(ordini,"ID")
+                   # db$orderData[ID_cliente==input$nome&Codice_ordine%in%ordini[row_to_del,Codice_ordine]]<-DF
+
+                   #print(paste0(input$ord_cliente,input$cod_ordine))
+                   mod_order<-data.table(ID= max(db$orderData$ID,na.rm=T)+1,
+                                         Codice_ordine = input$cod_ordine,
+                                         Data = input$data_ordine,
+                                         Q = input$quant_ordine,
+                                         ID_cliente = input$ord_cliente,
+                                         Note = input$note_ordine)
+                   db$orderData<-rbindlist(list(db$orderData,mod_order))
+                   # inserire nel db (append)
+                   # dbWriteTable(pool,"Ordini",new_order, append = TRUE)
+                   # inserire nel db (overwrite)
+                   dbWriteTable(pool,"Ordini",db$orderData, overwrite = TRUE)
+
+                   rv$new_order<-TRUE
+                   sendSweetAlert(
+                     session = session, title = "Success !!", text = "All in order", type = "success"
+                   )
+                   removeModal()
+                 } else {
+                   showModal(orderModal(failed = TRUE))
+                   # sendSweetAlert(
+                   #   session = session, title = "Error !!", text = "It's broken...", type = "error"
+                   # )
+                 }
+
+                 # newValue=lapply(input$newValue, function(col) {
+                 #   if (suppressWarnings(all(!is.na(as.numeric(as.character(col)))))) {
+                 #     as.numeric(as.character(col))
+                 #   } else {
+                 #     col
+                 #   }
+                 # })
+                 # DF=data.frame(lapply(newValue, function(x) t(data.frame(x))))
+                 # colnames(DF)=colnames(db$orderData)
+
+               })
+
+
   #Pompe dell'ordine e stato
   observeEvent(c(
     input$ordini_rows_selected,
